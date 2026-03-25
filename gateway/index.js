@@ -97,9 +97,9 @@ function createServiceProxy(serviceName, targetUrl) {
     target: targetUrl,
     changeOrigin: true,
     pathRewrite: (path) => {
-      // Remove the /api/{service} prefix and pass the rest to the service
-      // e.g., /api/products/1 → /1
-      return path.replace(`/api/${serviceName}`, '');
+      // Preserve resource path by only removing the /api prefix.
+      // e.g., /api/products/1 -> /products/1
+      return path.replace(/^\/api/, '');
     },
     onProxyReq: (proxyReq, req, res) => {
       // Log proxy request
