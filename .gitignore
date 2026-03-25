@@ -1,0 +1,10 @@
+# Global ignores for all services
+**/node_modules/
+**/.env.local
+**/.env.*.local
+**/*.log
+**/.DS_Store
+**/.idea/
+**/.vscode/
+**/dist/
+**/build/
