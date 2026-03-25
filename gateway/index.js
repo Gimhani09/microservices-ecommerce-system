@@ -219,6 +219,13 @@ app.get('/docs', (req, res) => {
 });
 
 /**
+ * Alias docs endpoint for assignment compatibility
+ */
+app.get('/api-docs', (req, res) => {
+  res.redirect('/docs');
+});
+
+/**
  * Services List Endpoint
  */
 app.get('/services', (req, res) => {
@@ -303,6 +310,7 @@ app.use((req, res) => {
   const availablePaths = [
     '/',
     '/docs',
+    '/api-docs',
     '/health',
     '/services',
     '/stats',
