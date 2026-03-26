@@ -496,14 +496,14 @@ app.use('/api/inventory', createServiceProxy('inventory', services.inventory.url
 
 /**
  * Payment Service Routes
- * All requests to /api/payment/* are proxied to Payment Service on 5004
+ * All requests to /api/payments/* are proxied to Payment Service on 5004
  */
-app.use('/api/payment', (req, res, next) => {
+app.use('/api/payments', (req, res, next) => {
   requestStats.total++;
   requestStats.byService.payment++;
   next();
 });
-app.use('/api/payment', createServiceProxy('payment', services.payment.url));
+app.use('/api/payments', createServiceProxy('payment', services.payment.url));
 
 // =============== 404 HANDLER ===============
 
@@ -521,7 +521,7 @@ app.use((req, res) => {
     '/api/products',
     '/api/orders',
     '/api/inventory',
-    '/api/payment'
+    '/api/payments'
   ];
 
   res.status(404).json({
