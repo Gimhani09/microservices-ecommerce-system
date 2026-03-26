@@ -1,0 +1,681 @@
+{
+	"info": {
+		"_postman_id": "payment-service-collection",
+		"name": "Payment Service API",
+		"description": "Complete API collection for testing Payment Service\n\nIncludes:\n- Direct service access (Port 5004)\n- Gateway access (Port 5000)\n- All CRUD operations\n- Health checks\n- Error scenarios",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "payment-service"
+	},
+	"item": [
+		{
+			"name": "Direct Access (Port 5004)",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:5004/health",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5004",
+							"path": [
+								"health"
+							]
+						},
+						"description": "Check if Payment Service is running"
+					},
+					"response": []
+				},
+				{
+					"name": "Process Payment - Success",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"orderId\": 101,\n  \"amount\": 299.99\n}"
+						},
+						"url": {
+							"raw": "http://localhost:5004/payments",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5004",
+							"path": [
+								"payments"
+							]
+						},
+						"description": "Process a payment for order 101\n\nNote: 80% chance of SUCCESS, 20% chance of FAILED"
+					},
+					"response": []
+				},
+				{
+					"name": "Process Payment - Large Amount",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"orderId\": 102,\n  \"amount\": 1599.99\n}"
+						},
+						"url": {
+							"raw": "http://localhost:5004/payments",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5004",
+							"path": [
+								"payments"
+							]
+						},
+						"description": "Process a high-value payment"
+					},
+					"response": []
+				},
+				{
+					"name": "Process Payment - Small Amount",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"orderId\": 103,\n  \"amount\": 9.99\n}"
+						},
+						"url": {
+							"raw": "http://localhost:5004/payments",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5004",
+							"path": [
+								"payments"
+							]
+						},
+						"description": "Process a small payment"
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Payments",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:5004/payments",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5004",
+							"path": [
+								"payments"
+							]
+						},
+						"description": "Retrieve all payments from the system"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Payment by ID - Valid",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:5004/payments/1",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5004",
+							"path": [
+								"payments",
+								"1"
+							]
+						},
+						"description": "Get specific payment by ID\n\nNote: Change the ID to match an existing payment"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Payment by ID - Not Found",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:5004/payments/9999",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5004",
+							"path": [
+								"payments",
+								"9999"
+							]
+						},
+						"description": "Test 404 error - payment not found"
+					},
+					"response": []
+				}
+			],
+			"description": "Direct access to Payment Service on Port 5004"
+		},
+		{
+			"name": "Via API Gateway (Port 5000)",
+			"item": [
+				{
+					"name": "Gateway Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:5000/health",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5000",
+							"path": [
+								"health"
+							]
+						},
+						"description": "Check if API Gateway is running"
+					},
+					"response": []
+				},
+				{
+					"name": "Process Payment via Gateway",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"orderId\": 201,\n  \"amount\": 449.99\n}"
+						},
+						"url": {
+							"raw": "http://localhost:5000/api/payments",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5000",
+							"path": [
+								"api",
+								"payments"
+							]
+						},
+						"description": "Process payment through API Gateway"
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Payments via Gateway",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:5000/api/payments",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5000",
+							"path": [
+								"api",
+								"payments"
+							]
+						},
+						"description": "Get all payments through API Gateway"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Payment by ID via Gateway",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:5000/api/payments/1",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5000",
+							"path": [
+								"api",
+								"payments",
+								"1"
+							]
+						},
+						"description": "Get specific payment through API Gateway"
+					},
+					"response": []
+				}
+			],
+			"description": "Access Payment Service through API Gateway on Port 5000"
+		},
+		{
+			"name": "Error Scenarios",
+			"item": [
+				{
+					"name": "Missing Order ID",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"amount\": 299.99\n}"
+						},
+						"url": {
+							"raw": "http://localhost:5004/payments",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5004",
+							"path": [
+								"payments"
+							]
+						},
+						"description": "Test validation error - missing orderId\n\nExpected: 400 Bad Request"
+					},
+					"response": []
+				},
+				{
+					"name": "Missing Amount",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"orderId\": 101\n}"
+						},
+						"url": {
+							"raw": "http://localhost:5004/payments",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5004",
+							"path": [
+								"payments"
+							]
+						},
+						"description": "Test validation error - missing amount\n\nExpected: 400 Bad Request"
+					},
+					"response": []
+				},
+				{
+					"name": "Negative Amount",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"orderId\": 101,\n  \"amount\": -50.00\n}"
+						},
+						"url": {
+							"raw": "http://localhost:5004/payments",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5004",
+							"path": [
+								"payments"
+							]
+						},
+						"description": "Test validation error - negative amount\n\nExpected: 400 Bad Request"
+					},
+					"response": []
+				},
+				{
+					"name": "Zero Amount",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"orderId\": 101,\n  \"amount\": 0\n}"
+						},
+						"url": {
+							"raw": "http://localhost:5004/payments",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5004",
+							"path": [
+								"payments"
+							]
+						},
+						"description": "Test validation error - zero amount\n\nExpected: 400 Bad Request"
+					},
+					"response": []
+				},
+				{
+					"name": "Invalid Order ID Type",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"orderId\": \"ABC\",\n  \"amount\": 299.99\n}"
+						},
+						"url": {
+							"raw": "http://localhost:5004/payments",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5004",
+							"path": [
+								"payments"
+							]
+						},
+						"description": "Test validation error - orderId must be integer\n\nExpected: 400 Bad Request"
+					},
+					"response": []
+				},
+				{
+					"name": "Invalid Payment ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:5004/payments/abc",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5004",
+							"path": [
+								"payments",
+								"abc"
+							]
+						},
+						"description": "Test validation error - invalid ID format\n\nExpected: 400 Bad Request"
+					},
+					"response": []
+				},
+				{
+					"name": "Route Not Found",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:5004/invalid-route",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5004",
+							"path": [
+								"invalid-route"
+							]
+						},
+						"description": "Test 404 error - route not found\n\nExpected: 404 Not Found"
+					},
+					"response": []
+				}
+			],
+			"description": "Test various error scenarios and validation"
+		},
+		{
+			"name": "Integration Tests",
+			"item": [
+				{
+					"name": "Complete Payment Flow",
+					"item": [
+						{
+							"name": "Step 1 - Process Payment",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"orderId\": 301,\n  \"amount\": 599.99\n}"
+								},
+								"url": {
+									"raw": "http://localhost:5004/payments",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5004",
+									"path": [
+										"payments"
+									]
+								},
+								"description": "Step 1: Create a new payment"
+							},
+							"response": []
+						},
+						{
+							"name": "Step 2 - Get All Payments",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:5004/payments",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5004",
+									"path": [
+										"payments"
+									]
+								},
+								"description": "Step 2: Verify payment was created"
+							},
+							"response": []
+						},
+						{
+							"name": "Step 3 - Get Payment by ID",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:5004/payments/1",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5004",
+									"path": [
+										"payments",
+										"1"
+									]
+								},
+								"description": "Step 3: Get the specific payment details\n\nNote: Update ID based on Step 1 response"
+							},
+							"response": []
+						}
+					],
+					"description": "Complete flow: Create → List → Get by ID"
+				},
+				{
+					"name": "Multiple Payments Test",
+					"item": [
+						{
+							"name": "Payment 1",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"orderId\": 401,\n  \"amount\": 99.99\n}"
+								},
+								"url": {
+									"raw": "http://localhost:5004/payments",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5004",
+									"path": [
+										"payments"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Payment 2",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"orderId\": 402,\n  \"amount\": 149.99\n}"
+								},
+								"url": {
+									"raw": "http://localhost:5004/payments",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5004",
+									"path": [
+										"payments"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Payment 3",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"orderId\": 403,\n  \"amount\": 249.99\n}"
+								},
+								"url": {
+									"raw": "http://localhost:5004/payments",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5004",
+									"path": [
+										"payments"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get All Payments",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:5004/payments",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "5004",
+									"path": [
+										"payments"
+									]
+								},
+								"description": "View all created payments"
+							},
+							"response": []
+						}
+					],
+					"description": "Create multiple payments and verify"
+				}
+			],
+			"description": "End-to-end integration test scenarios"
+		}
+	],
+	"variable": [
+		{
+			"key": "payment_service_url",
+			"value": "http://localhost:5004",
+			"type": "string"
+		},
+		{
+			"key": "gateway_url",
+			"value": "http://localhost:5000",
+			"type": "string"
+		}
+	]
+}
