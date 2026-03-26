@@ -362,7 +362,6 @@ const swaggerSpec = swaggerJsdoc({
 
 // =============== MIDDLEWARE ===============
 app.use(cors());
-app.use(express.json());
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // =============== REQUEST LOGGING MIDDLEWARE ===============
@@ -437,6 +436,15 @@ function createServiceProxy(serviceName, targetUrl) {
     onProxyReq: (proxyReq, req, res) => {
       // Log proxy request
       console.log(`  ↳ Forwarding to ${serviceName} service`);
+
+      // Re-send JSON body because express.json() consumes the stream before proxying
+      if (req.body && Object.keys(req.body).length) {
+        const bodyData = JSON.stringify(req.body);
+        proxyReq.setHeader('Content-Type', 'application/json');
+        proxyReq.setHeader('Content-Length', Buffer.byteLength(bodyData));
+        proxyReq.write(bodyData);
+        proxyReq.end();
+      }
     },
     onProxyRes: (proxyRes, req, res) => {
       // Add gateway headers
