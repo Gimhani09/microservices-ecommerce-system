@@ -136,22 +136,33 @@ const swaggerSpec = swaggerJsdoc({
         post: {
           tags: ['Orders'],
           summary: 'Create new order',
-          description: 'Place a new order (requires: customerId, items, totalPrice)',
+          description: 'Place a new order (requires: customerName, email, phone, address, city, postalCode, items)',
           requestBody: {
             required: true,
             content: {
               'application/json': {
                 schema: {
                   type: 'object',
-                  required: ['customerId', 'items', 'totalPrice'],
+                  required: ['customerName', 'email', 'phone', 'address', 'city', 'postalCode', 'items'],
                   properties: {
-                    customerId: { type: 'integer', example: 1 },
-                    items: { 
+                    customerName: { type: 'string', example: 'Jane Doe' },
+                    email: { type: 'string', format: 'email', example: 'jane@example.com' },
+                    phone: { type: 'string', example: '0771234567' },
+                    address: { type: 'string', example: '123 Main St' },
+                    city: { type: 'string', example: 'Colombo' },
+                    postalCode: { type: 'string', example: '10000' },
+                    items: {
                       type: 'array',
-                      items: { type: 'object', properties: { productId: { type: 'integer' }, quantity: { type: 'integer' } } },
-                      example: [{ productId: 1, quantity: 2 }]
-                    },
-                    totalPrice: { type: 'number', example: 1799.98 }
+                      items: {
+                        type: 'object',
+                        required: ['productId', 'quantity'],
+                        properties: {
+                          productId: { type: 'string', example: 'p001' },
+                          quantity: { type: 'integer', example: 2, minimum: 1 }
+                        }
+                      },
+                      example: [{ productId: 'p001', quantity: 2 }]
+                    }
                   }
                 }
               }
@@ -178,13 +189,14 @@ const swaggerSpec = swaggerJsdoc({
                 schema: {
                   type: 'object',
                   properties: {
-                    customerId: { type: 'integer', example: 1 },
-                    items: { 
-                      type: 'array',
-                      items: { type: 'object' },
-                      example: [{ productId: 1, quantity: 2 }]
-                    },
-                    totalPrice: { type: 'number', example: 1799.98 }
+                    customerName: { type: 'string', example: 'Jane Doe' },
+                    email: { type: 'string', format: 'email', example: 'jane@example.com' },
+                    phone: { type: 'string', example: '0771234567' },
+                    address: { type: 'string', example: '123 Main St' },
+                    city: { type: 'string', example: 'Colombo' },
+                    postalCode: { type: 'string', example: '10000' },
+                    items: { type: 'array', items: { type: 'object' }, example: [{ productId: 'p001', quantity: 2 }] },
+                    status: { type: 'string', enum: ['PENDING', 'CONFIRMED', 'CANCELLED'] }
                   }
                 }
               }
