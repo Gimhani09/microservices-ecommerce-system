@@ -1,0 +1,387 @@
+/**
+ * ==============================================================
+ * PAYMENT SERVICE - Node.js + Express
+ * ==============================================================
+ *
+ * PURPOSE:
+ * Handle all payment processing for the e-commerce system
+ *
+ * ENDPOINTS:
+ * POST   /payments          → Process a new payment
+ * GET    /payments          → Get all payments
+ * GET    /payments/:id      → Get a specific payment
+ * GET    /health            → Health check
+ *
+ * PORT: 5004
+ * ==============================================================
+ */
+
+// =============== IMPORTS ===============
+const express = require('express');
+const cors = require('cors');
+const swaggerUi = require('swagger-ui-express');
+require('dotenv').config();
+
+// =============== EXPRESS SETUP ===============
+const app = express();
+const PORT = process.env.PORT || 5004;
+
+// =============== MIDDLEWARE ===============
+app.use(cors());
+app.use(express.json());
+
+// =============== IN-MEMORY DATABASE ===============
+// In real production, this would be a database (MongoDB, PostgreSQL, etc.)
+let payments = [];
+
+// Counter for generating unique IDs
+let paymentIdCounter = 1;
+
+// =============== SWAGGER DOCUMENTATION ===============
+const swaggerDocs = {
+  openapi: '3.0.0',
+  info: {
+    title: 'Payment Service API',
+    version: '1.0.0',
+    description: 'Microservice for processing payments in the e-commerce system'
+  },
+  servers: [
+    {
+      url: `http://localhost:${PORT}`,
+      description: 'Payment Service'
+    }
+  ],
+  paths: {
+    '/payments': {
+      post: {
+        summary: 'Process a new payment',
+        tags: ['Payments'],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  orderId: { type: 'number', example: 101 },
+                  amount: { type: 'number', example: 299.99 }
+                },
+                required: ['orderId', 'amount']
+              }
+            }
+          }
+        },
+        responses: {
+          201: {
+            description: 'Payment processed successfully',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean' },
+                    message: { type: 'string' },
+                    data: {
+                      type: 'object',
+                      properties: {
+                        id: { type: 'number' },
+                        orderId: { type: 'number' },
+                        amount: { type: 'number' },
+                        status: { type: 'string', enum: ['SUCCESS', 'FAILED'] }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          400: { description: 'Invalid input' }
+        }
+      },
+      get: {
+        summary: 'Get all payments',
+        tags: ['Payments'],
+        responses: {
+          200: {
+            description: 'List of all payments',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean' },
+                    message: { type: 'string' },
+                    data: {
+                      type: 'array',
+                      items: {
+                        type: 'object',
+                        properties: {
+                          id: { type: 'number' },
+                          orderId: { type: 'number' },
+                          amount: { type: 'number' },
+                          status: { type: 'string' }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    '/payments/{id}': {
+      get: {
+        summary: 'Get a specific payment',
+        tags: ['Payments'],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: { type: 'number' }
+          }
+        ],
+        responses: {
+          200: { description: 'Payment found' },
+          404: { description: 'Payment not found' }
+        }
+      }
+    },
+    '/health': {
+      get: {
+        summary: 'Health check endpoint',
+        tags: ['System'],
+        responses: {
+          200: { description: 'Service is running' }
+        }
+      }
+    }
+  }
+};
+
+// =============== VALIDATION FUNCTION ===============
+/**
+ * Validates payment data before processing
+ * @param {Object} payment - Payment object to validate
+ * @returns {Object} - { isValid: boolean, error: string }
+ */
+function validatePayment(payment) {
+  // Check if orderId exists and is a number
+  if (payment.orderId === undefined || payment.orderId === null) {
+    return { isValid: false, error: 'Order ID is required' };
+  }
+
+  if (typeof payment.orderId !== 'number' || !Number.isInteger(payment.orderId)) {
+    return { isValid: false, error: 'Order ID must be an integer' };
+  }
+
+  // Check if amount exists and is a positive number
+  if (payment.amount === undefined || payment.amount === null) {
+    return { isValid: false, error: 'Amount is required' };
+  }
+
+  if (typeof payment.amount !== 'number' || payment.amount <= 0) {
+    return { isValid: false, error: 'Amount must be a positive number' };
+  }
+
+  return { isValid: true };
+}
+
+// =============== PAYMENT PROCESSING SIMULATOR ===============
+/**
+ * Simulates payment processing with random success/failure
+ * In production, this would integrate with a real payment gateway (Stripe, PayPal, etc.)
+ *
+ * @returns {string} - "SUCCESS" or "FAILED"
+ */
+function processPayment() {
+  // 80% success rate
+  const random = Math.random();
+  return random < 0.8 ? 'SUCCESS' : 'FAILED';
+}
+
+// =============== ROUTES ===============
+
+/**
+ * SWAGGER ENDPOINT
+ * Access Swagger UI at: http://localhost:5004/api-docs
+ */
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
+
+/**
+ * POST /payments
+ * Process a new payment
+ *
+ * Request Body:
+ * {
+ *   "orderId": 101,
+ *   "amount": 299.99
+ * }
+ *
+ * Response: 201 Created
+ * {
+ *   "success": true,
+ *   "message": "Payment processed successfully",
+ *   "data": { id, orderId, amount, status }
+ * }
+ */
+app.post('/payments', (req, res) => {
+  try {
+    // Extract data from request body
+    const { orderId, amount } = req.body;
+
+    // Validate the payment data
+    const validation = validatePayment({ orderId, amount });
+    if (!validation.isValid) {
+      return res.status(400).json({
+        success: false,
+        error: validation.error
+      });
+    }
+
+    // Simulate payment processing
+    const status = processPayment();
+
+    // Create new payment object
+    const newPayment = {
+      id: paymentIdCounter++,
+      orderId,
+      amount,
+      status
+    };
+
+    // Add payment to array
+    payments.push(newPayment);
+
+    // Return response based on payment status
+    res.status(201).json({
+      success: status === 'SUCCESS',
+      message: status === 'SUCCESS'
+        ? 'Payment processed successfully'
+        : 'Payment processing failed',
+      data: newPayment
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error: ' + error.message
+    });
+  }
+});
+
+/**
+ * GET /payments
+ * Get all payments
+ *
+ * Response: 200 OK
+ * {
+ *   "success": true,
+ *   "message": "Retrieved X payments",
+ *   "data": [{ id, orderId, amount, status }, ...]
+ * }
+ */
+app.get('/payments', (req, res) => {
+  try {
+    res.json({
+      success: true,
+      message: `Retrieved ${payments.length} payments`,
+      data: payments
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error: ' + error.message
+    });
+  }
+});
+
+/**
+ * GET /payments/:id
+ * Get a specific payment by ID
+ *
+ * URL Parameter:
+ * - id: Payment ID (number)
+ *
+ * Response: 200 OK or 404 Not Found
+ * {
+ *   "success": true,
+ *   "data": { id, orderId, amount, status }
+ * }
+ */
+app.get('/payments/:id', (req, res) => {
+  try {
+    const paymentId = parseInt(req.params.id);
+
+    // Validate ID is a number
+    if (isNaN(paymentId)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Payment ID must be a number'
+      });
+    }
+
+    // Find payment by ID
+    const payment = payments.find(p => p.id === paymentId);
+
+    if (!payment) {
+      return res.status(404).json({
+        success: false,
+        error: `Payment with ID ${paymentId} not found`
+      });
+    }
+
+    res.json({
+      success: true,
+      data: payment
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error: ' + error.message
+    });
+  }
+});
+
+// =============== HEALTH CHECK ENDPOINT ===============
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'Payment Service is running',
+    port: PORT,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// =============== ERROR HANDLING ===============
+// 404 - Route not found
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    error: 'Route not found',
+    path: req.path,
+    method: req.method
+  });
+});
+
+// =============== START SERVER ===============
+app.listen(PORT, () => {
+  console.log(`
+╔═══════════════════════════════════════════════════════╗
+║          PAYMENT SERVICE STARTED ✓                    ║
+╚═══════════════════════════════════════════════════════╝
+
+🔗 Service URL:      http://localhost:${PORT}
+📚 Swagger Docs:     http://localhost:${PORT}/api-docs
+❤️  Health Check:    http://localhost:${PORT}/health
+
+📋 Available Endpoints:
+   POST   /payments          → Process a new payment
+   GET    /payments          → Get all payments
+   GET    /payments/:id      → Get a specific payment
+
+Environment: ${process.env.NODE_ENV}
+  `);
+});
+
+module.exports = app;
