@@ -12,7 +12,7 @@
  * /api/products/*  → Product Service (5001)
  * /api/orders/*    → Order Service (5002)
  * /api/inventory/* → Inventory Service (5003)
- * /api/payment/*   → Payment Service (5004)
+ * /api/payments/*  → Payment Service (5004)
  * /docs            → API Documentation
  * /health          → Gateway health check
  * 
@@ -85,57 +85,145 @@ const swaggerSpec = swaggerJsdoc({
       '/api/products': {
         get: {
           tags: ['Products'],
-          summary: 'Get all products via gateway',
-          responses: { '200': { description: 'Products returned from Product Service' } }
+          summary: 'Get all products',
+          description: 'Retrieve list of all products via gateway',
+          responses: { '200': { description: 'List of products' } }
         },
         post: {
           tags: ['Products'],
-          summary: 'Create product via gateway',
-          responses: { '201': { description: 'Product created in Product Service' } }
+          summary: 'Create new product',
+          description: 'Create a new product (requires: name, price, stock)',
+          responses: { '201': { description: 'Product created' }, '400': { description: 'Invalid input' } }
         }
       },
       '/api/products/{id}': {
         get: {
           tags: ['Products'],
-          summary: 'Get product by id via gateway',
-          parameters: [
-            { name: 'id', in: 'path', required: true, schema: { type: 'integer' } }
-          ],
-          responses: { '200': { description: 'Product returned' }, '404': { description: 'Product not found' } }
+          summary: 'Get product by ID',
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
+          responses: { '200': { description: 'Product details' }, '404': { description: 'Product not found' } }
         },
         delete: {
           tags: ['Products'],
-          summary: 'Delete product by id via gateway',
-          parameters: [
-            { name: 'id', in: 'path', required: true, schema: { type: 'integer' } }
-          ],
+          summary: 'Delete product',
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
           responses: { '200': { description: 'Product deleted' }, '404': { description: 'Product not found' } }
         }
       },
       '/api/orders': {
         get: {
           tags: ['Orders'],
-          summary: 'Get orders via gateway',
-          responses: { '200': { description: 'Forwarded to Order Service' } }
+          summary: 'Get all orders',
+          description: 'Retrieve list of all orders',
+          responses: { '200': { description: 'List of orders' } }
         },
         post: {
           tags: ['Orders'],
-          summary: 'Create order via gateway',
-          responses: { '200': { description: 'Forwarded to Order Service' } }
+          summary: 'Create new order',
+          description: 'Place a new order (requires: customerId, items, totalPrice)',
+          responses: { '201': { description: 'Order created' }, '400': { description: 'Invalid input' } }
+        }
+      },
+      '/api/orders/{id}': {
+        get: {
+          tags: ['Orders'],
+          summary: 'Get order by ID',
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
+          responses: { '200': { description: 'Order details' }, '404': { description: 'Order not found' } }
+        },
+        put: {
+          tags: ['Orders'],
+          summary: 'Update order',
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
+          responses: { '200': { description: 'Order updated' }, '404': { description: 'Order not found' } }
+        },
+        delete: {
+          tags: ['Orders'],
+          summary: 'Delete order',
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
+          responses: { '200': { description: 'Order deleted' }, '404': { description: 'Order not found' } }
+        }
+      },
+      '/api/orders/{id}/status': {
+        patch: {
+          tags: ['Orders'],
+          summary: 'Update order status',
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
+          description: 'Update order status (e.g., pending, confirmed, shipped)',
+          responses: { '200': { description: 'Status updated' }, '404': { description: 'Order not found' } }
         }
       },
       '/api/inventory': {
         get: {
           tags: ['Inventory'],
-          summary: 'Get inventory via gateway',
-          responses: { '200': { description: 'Forwarded to Inventory Service' } }
+          summary: 'Get all inventory',
+          description: 'Retrieve all inventory records',
+          responses: { '200': { description: 'List of inventory items' } }
+        },
+        post: {
+          tags: ['Inventory'],
+          summary: 'Add inventory item',
+          description: 'Add new inventory record (requires: productId, quantity)',
+          responses: { '201': { description: 'Inventory item created' } }
         }
       },
-      '/api/payment': {
+      '/api/inventory/{id}': {
+        get: {
+          tags: ['Inventory'],
+          summary: 'Get inventory by ID',
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
+          responses: { '200': { description: 'Inventory details' }, '404': { description: 'Not found' } }
+        },
+        put: {
+          tags: ['Inventory'],
+          summary: 'Update inventory',
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
+          responses: { '200': { description: 'Inventory updated' }, '404': { description: 'Not found' } }
+        },
+        delete: {
+          tags: ['Inventory'],
+          summary: 'Delete inventory item',
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
+          responses: { '200': { description: 'Inventory deleted' }, '404': { description: 'Not found' } }
+        }
+      },
+      '/api/inventory/check/{productId}': {
+        get: {
+          tags: ['Inventory'],
+          summary: 'Check product stock availability',
+          parameters: [{ name: 'productId', in: 'path', required: true, schema: { type: 'integer' } }],
+          description: 'Check if product is in stock',
+          responses: { '200': { description: 'Stock status' }, '404': { description: 'Product not found' } }
+        }
+      },
+      '/api/inventory/{id}/stock': {
+        patch: {
+          tags: ['Inventory'],
+          summary: 'Update product stock quantity',
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
+          description: 'Adjust stock quantity (increase or decrease)',
+          responses: { '200': { description: 'Stock updated' }, '400': { description: 'Invalid quantity' } }
+        }
+      },
+      '/api/payments': {
+        get: {
+          tags: ['Payment'],
+          summary: 'Get all payments',
+          responses: { '200': { description: 'List of payments' } }
+        },
         post: {
           tags: ['Payment'],
-          summary: 'Process payment via gateway',
-          responses: { '200': { description: 'Forwarded to Payment Service' } }
+          summary: 'Process payment',
+          description: 'Process a new payment transaction',
+          responses: { '201': { description: 'Payment processed' }, '400': { description: 'Invalid payment data' } }
+        }
+      },
+      '/api/payments/{id}': {
+        get: {
+          tags: ['Payment'],
+          summary: 'Get payment by ID',
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+          responses: { '200': { description: 'Payment details' }, '404': { description: 'Payment not found' } }
         }
       }
     }
@@ -182,7 +270,7 @@ const services = {
   payment: {
     name: 'Payment Service',
     url: process.env.PAYMENT_SERVICE_URL || 'http://localhost:5004',
-    path: '/api/payment'
+    path: '/api/payments'
   }
 };
 
