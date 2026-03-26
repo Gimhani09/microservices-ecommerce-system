@@ -211,29 +211,6 @@ const swaggerSpec = swaggerJsdoc({
           responses: { '200': { description: 'Order deleted' }, '404': { description: 'Order not found' } }
         }
       },
-      '/api/orders/{id}/status': {
-        patch: {
-          tags: ['Orders'],
-          summary: 'Update order status',
-          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
-          description: 'Update order status (e.g., pending, confirmed, shipped)',
-          requestBody: {
-            required: true,
-            content: {
-              'application/json': {
-                schema: {
-                  type: 'object',
-                  required: ['status'],
-                  properties: {
-                    status: { type: 'string', example: 'confirmed', enum: ['pending', 'confirmed', 'shipped', 'delivered'] }
-                  }
-                }
-              }
-            }
-          },
-          responses: { '200': { description: 'Status updated' }, '404': { description: 'Order not found' } }
-        }
-      },
       '/api/inventory': {
         get: {
           tags: ['Inventory'],
@@ -244,23 +221,25 @@ const swaggerSpec = swaggerJsdoc({
         post: {
           tags: ['Inventory'],
           summary: 'Add inventory item',
-          description: 'Add new inventory record (requires: productId, quantity)',
+          description: 'Add new inventory record (requires: productId, productName, quantity, warehouseLocation)',
           requestBody: {
             required: true,
             content: {
               'application/json': {
                 schema: {
                   type: 'object',
-                  required: ['productId', 'quantity'],
+                  required: ['productId', 'productName', 'quantity', 'warehouseLocation'],
                   properties: {
-                    productId: { type: 'integer', example: 1 },
-                    quantity: { type: 'integer', example: 50 }
+                    productId: { type: 'integer', example: 4 },
+                    productName: { type: 'string', example: 'Wireless Headphones' },
+                    quantity: { type: 'integer', example: 50 },
+                    warehouseLocation: { type: 'string', example: 'C2' }
                   }
                 }
               }
             }
           },
-          responses: { '201': { description: 'Inventory item created' } }
+          responses: { '201': { description: 'Inventory item created' }, '400': { description: 'Invalid input' }, '409': { description: 'Inventory for this productId already exists' } }
         }
       },
       '/api/inventory/{id}': {
@@ -280,15 +259,18 @@ const swaggerSpec = swaggerJsdoc({
               'application/json': {
                 schema: {
                   type: 'object',
+                  required: ['productId', 'productName', 'quantity', 'warehouseLocation'],
                   properties: {
                     productId: { type: 'integer', example: 1 },
-                    quantity: { type: 'integer', example: 50 }
+                    productName: { type: 'string', example: 'Laptop Pro' },
+                    quantity: { type: 'integer', example: 20 },
+                    warehouseLocation: { type: 'string', example: 'A2' }
                   }
                 }
               }
             }
           },
-          responses: { '200': { description: 'Inventory updated' }, '404': { description: 'Not found' } }
+          responses: { '200': { description: 'Inventory updated' }, '400': { description: 'Invalid input' }, '404': { description: 'Not found' } }
         },
         delete: {
           tags: ['Inventory'],
@@ -311,22 +293,22 @@ const swaggerSpec = swaggerJsdoc({
           tags: ['Inventory'],
           summary: 'Update product stock quantity',
           parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
-          description: 'Adjust stock quantity (increase or decrease)',
+          description: 'Adjust stock quantity. Use positive number to add stock, negative to reduce (e.g. -5 after an order).',
           requestBody: {
             required: true,
             content: {
               'application/json': {
                 schema: {
                   type: 'object',
-                  required: ['quantity'],
+                  required: ['adjustment'],
                   properties: {
-                    quantity: { type: 'integer', example: 10 }
+                    adjustment: { type: 'integer', example: -5, description: 'Positive to add stock, negative to reduce stock' }
                   }
                 }
               }
             }
           },
-          responses: { '200': { description: 'Stock updated' }, '400': { description: 'Invalid quantity' } }
+          responses: { '200': { description: 'Stock adjusted successfully' }, '400': { description: 'Invalid adjustment or insufficient stock' }, '404': { description: 'Not found' } }
         }
       },
       '/api/payments': {
