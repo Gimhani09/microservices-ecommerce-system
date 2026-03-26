@@ -24,15 +24,129 @@
 const express = require('express');
 const { createProxyMiddleware } = require('http-proxy-middleware');
 const cors = require('cors');
+const swaggerUi = require('swagger-ui-express');
+const swaggerJsdoc = require('swagger-jsdoc');
 require('dotenv').config();
 
 // =============== EXPRESS SETUP ===============
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+const swaggerSpec = swaggerJsdoc({
+  definition: {
+    openapi: '3.0.0',
+    info: {
+      title: 'E-Commerce API Gateway',
+      version: '1.0.0',
+      description: 'Gateway routes client requests to all microservices'
+    },
+    servers: [
+      {
+        url: `http://localhost:${PORT}`,
+        description: 'Local Gateway'
+      }
+    ],
+    tags: [
+      { name: 'Gateway', description: 'Gateway utility endpoints' },
+      { name: 'Products', description: 'Product routes through gateway' },
+      { name: 'Orders', description: 'Order routes through gateway' },
+      { name: 'Inventory', description: 'Inventory routes through gateway' },
+      { name: 'Payment', description: 'Payment routes through gateway' }
+    ],
+    paths: {
+      '/': {
+        get: {
+          tags: ['Gateway'],
+          summary: 'Gateway welcome endpoint',
+          responses: { '200': { description: 'Gateway info returned' } }
+        }
+      },
+      '/health': {
+        get: {
+          tags: ['Gateway'],
+          summary: 'Gateway health status',
+          responses: { '200': { description: 'Gateway health returned' } }
+        }
+      },
+      '/services': {
+        get: {
+          tags: ['Gateway'],
+          summary: 'List configured services',
+          responses: { '200': { description: 'Service list returned' } }
+        }
+      },
+      '/stats': {
+        get: {
+          tags: ['Gateway'],
+          summary: 'Gateway request statistics',
+          responses: { '200': { description: 'Statistics returned' } }
+        }
+      },
+      '/api/products': {
+        get: {
+          tags: ['Products'],
+          summary: 'Get all products via gateway',
+          responses: { '200': { description: 'Products returned from Product Service' } }
+        },
+        post: {
+          tags: ['Products'],
+          summary: 'Create product via gateway',
+          responses: { '201': { description: 'Product created in Product Service' } }
+        }
+      },
+      '/api/products/{id}': {
+        get: {
+          tags: ['Products'],
+          summary: 'Get product by id via gateway',
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'integer' } }
+          ],
+          responses: { '200': { description: 'Product returned' }, '404': { description: 'Product not found' } }
+        },
+        delete: {
+          tags: ['Products'],
+          summary: 'Delete product by id via gateway',
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'integer' } }
+          ],
+          responses: { '200': { description: 'Product deleted' }, '404': { description: 'Product not found' } }
+        }
+      },
+      '/api/orders': {
+        get: {
+          tags: ['Orders'],
+          summary: 'Get orders via gateway',
+          responses: { '200': { description: 'Forwarded to Order Service' } }
+        },
+        post: {
+          tags: ['Orders'],
+          summary: 'Create order via gateway',
+          responses: { '200': { description: 'Forwarded to Order Service' } }
+        }
+      },
+      '/api/inventory': {
+        get: {
+          tags: ['Inventory'],
+          summary: 'Get inventory via gateway',
+          responses: { '200': { description: 'Forwarded to Inventory Service' } }
+        }
+      },
+      '/api/payment': {
+        post: {
+          tags: ['Payment'],
+          summary: 'Process payment via gateway',
+          responses: { '200': { description: 'Forwarded to Payment Service' } }
+        }
+      }
+    }
+  },
+  apis: []
+});
+
 // =============== MIDDLEWARE ===============
 app.use(cors());
 app.use(express.json());
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // =============== REQUEST LOGGING MIDDLEWARE ===============
 /**
@@ -139,6 +253,7 @@ app.get('/', (req, res) => {
     quickStart: {
       'Get Products': `GET http://localhost:${PORT}/api/products`,
       'Create Product': `POST http://localhost:${PORT}/api/products`,
+      'Gateway Swagger UI': `GET http://localhost:${PORT}/api-docs`,
       'Gateway Docs': `GET http://localhost:${PORT}/docs`,
       'Check Health': `GET http://localhost:${PORT}/health`,
       'View Services': `GET http://localhost:${PORT}/services`
@@ -210,6 +325,7 @@ app.get('/docs', (req, res) => {
 
     utilities: {
       '/': 'Gateway welcome page',
+      '/api-docs': 'Swagger UI documentation',
       '/health': 'Check gateway health status',
       '/docs': 'API documentation (this page)',
       '/services': 'List all services',
