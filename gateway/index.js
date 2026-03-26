@@ -2,21 +2,20 @@
  * ==============================================================
  * API GATEWAY - Node.js + Express + HTTP Proxy Middleware
  * ==============================================================
- *
+ * 
  * PURPOSE:
  * Single entry point for all microservices
  * Routes requests to appropriate services
  * Centralizes cross-cutting concerns
- *
+ * 
  * ROUTES:
  * /api/products/*  → Product Service (5001)
  * /api/orders/*    → Order Service (5002)
  * /api/inventory/* → Inventory Service (5003)
- * /api/payments/*  → Payment Service (5004)
- * /api/payment/*   → Payment Service alias (backward compatibility)
+ * /api/payment/*   → Payment Service (5004)
  * /docs            → API Documentation
  * /health          → Gateway health check
- *
+ * 
  * PORT: 5000
  * ==============================================================
  */
@@ -132,17 +131,10 @@ const swaggerSpec = swaggerJsdoc({
           responses: { '200': { description: 'Forwarded to Inventory Service' } }
         }
       },
-      '/api/payments': {
-        post: {
-          tags: ['Payment'],
-          summary: 'Process payment via gateway',
-          responses: { '200': { description: 'Forwarded to Payment Service' } }
-        }
-      },
       '/api/payment': {
         post: {
           tags: ['Payment'],
-          summary: 'Process payment via gateway (alias)',
+          summary: 'Process payment via gateway',
           responses: { '200': { description: 'Forwarded to Payment Service' } }
         }
       }
@@ -157,6 +149,9 @@ app.use(express.json());
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // =============== REQUEST LOGGING MIDDLEWARE ===============
+/**
+ * Logs all incoming requests for monitoring and debugging
+ */
 app.use((req, res, next) => {
   const timestamp = new Date().toISOString();
   console.log(`[${timestamp}] ${req.method} ${req.path}`);
@@ -164,6 +159,10 @@ app.use((req, res, next) => {
 });
 
 // =============== MICROSERVICES CONFIGURATION ===============
+/**
+ * Configuration for all microservices
+ * Each service is defined with its URL and routing path
+ */
 const services = {
   product: {
     name: 'Product Service',
@@ -183,12 +182,14 @@ const services = {
   payment: {
     name: 'Payment Service',
     url: process.env.PAYMENT_SERVICE_URL || 'http://localhost:5004',
-    path: '/api/payments',
-    aliasPath: '/api/payment'
+    path: '/api/payment'
   }
 };
 
 // =============== REQUEST STATISTICS ===============
+/**
+ * Track request counts per service
+ */
 const requestStats = {
   total: 0,
   byService: {
@@ -200,20 +201,31 @@ const requestStats = {
 };
 
 // =============== PROXY CONFIGURATION FUNCTION ===============
-function createServiceProxy(serviceName, targetUrl, rewritePath) {
+/**
+ * Creates a proxy middleware with error handling
+ * @param {string} serviceName - Name of the service
+ * @param {string} targetUrl - Target service URL
+ */
+function createServiceProxy(serviceName, targetUrl) {
   return createProxyMiddleware({
     target: targetUrl,
     changeOrigin: true,
-    pathRewrite: rewritePath || ((path) => path.replace(/^\/api/, '')),
-    onProxyReq: () => {
-      console.log(`  -> Forwarding to ${serviceName} service`);
+    pathRewrite: (path) => {
+      // Preserve resource path by only removing the /api prefix.
+      // e.g., /api/products/1 -> /products/1
+      return path.replace(/^\/api/, '');
     },
-    onProxyRes: (proxyRes) => {
+    onProxyReq: (proxyReq, req, res) => {
+      // Log proxy request
+      console.log(`  ↳ Forwarding to ${serviceName} service`);
+    },
+    onProxyRes: (proxyRes, req, res) => {
+      // Add gateway headers
       proxyRes.headers['X-Gateway'] = 'API Gateway v1.0';
       proxyRes.headers['X-Service'] = serviceName;
     },
     onError: (err, req, res) => {
-      console.error(`  x Error routing to ${serviceName}: ${err.message}`);
+      console.error(`  ✗ Error routing to ${serviceName}: ${err.message}`);
       res.status(503).json({
         success: false,
         error: `Service '${serviceName}' is unavailable`,
@@ -224,15 +236,11 @@ function createServiceProxy(serviceName, targetUrl, rewritePath) {
   });
 }
 
-function incrementStats(serviceKey) {
-  return (req, res, next) => {
-    requestStats.total += 1;
-    requestStats.byService[serviceKey] += 1;
-    next();
-  };
-}
-
 // =============== ROOT ENDPOINT ===============
+
+/**
+ * Gateway Welcome Endpoint
+ */
 app.get('/', (req, res) => {
   res.json({
     title: 'E-Commerce Microservices API Gateway',
@@ -241,7 +249,7 @@ app.get('/', (req, res) => {
     port: PORT,
     message: 'Welcome to the API Gateway',
     baseUrl: `http://localhost:${PORT}`,
-
+    
     quickStart: {
       'Get Products': `GET http://localhost:${PORT}/api/products`,
       'Create Product': `POST http://localhost:${PORT}/api/products`,
@@ -253,7 +261,11 @@ app.get('/', (req, res) => {
   });
 });
 
-// =============== HEALTH CHECK ENDPOINT ===============
+// =============== HEALTH CHECK ENDPOINTS ===============
+
+/**
+ * Gateway Health Check
+ */
 app.get('/health', (req, res) => {
   res.json({
     status: 'API Gateway is running',
@@ -263,41 +275,54 @@ app.get('/health', (req, res) => {
       products: `${services.product.path}/*`,
       orders: `${services.order.path}/*`,
       inventory: `${services.inventory.path}/*`,
-      payments: `${services.payment.path}/*`,
-      paymentAlias: `${services.payment.aliasPath}/*`
+      payment: `${services.payment.path}/*`
     }
   });
 });
 
 // =============== DOCUMENTATION ENDPOINT ===============
+
+/**
+ * Gateway API Documentation
+ */
 app.get('/docs', (req, res) => {
   res.json({
     title: 'E-Commerce Microservices API Gateway',
     version: '1.0.0',
     description: 'Central entry point for all microservices',
     baseUrl: `http://localhost:${PORT}`,
+
     routes: {
-      [services.product.path]: {
-        service: services.product.name,
-        methods: ['GET', 'POST', 'DELETE']
-      },
-      [services.order.path]: {
-        service: services.order.name,
-        methods: ['GET', 'POST']
-      },
-      [services.inventory.path]: {
-        service: services.inventory.name,
-        methods: ['GET', 'PUT', 'POST']
-      },
-      [services.payment.path]: {
-        service: services.payment.name,
-        methods: ['GET', 'POST']
-      },
-      [services.payment.aliasPath]: {
-        service: `${services.payment.name} (alias)`,
-        methods: ['GET', 'POST']
+      '/api/products': {
+        service: 'Product Service',
+        port: 5001,
+        methods: ['GET', 'POST', 'DELETE'],
+        endpoints: [
+          {
+            method: 'GET',
+            path: '/api/products',
+            description: 'Get all products'
+          },
+          {
+            method: 'GET',
+            path: '/api/products/:id',
+            description: 'Get a specific product'
+          },
+          {
+            method: 'POST',
+            path: '/api/products',
+            description: 'Create a new product',
+            body: { name: 'string', price: 'number', stock: 'number' }
+          },
+          {
+            method: 'DELETE',
+            path: '/api/products/:id',
+            description: 'Delete a product'
+          }
+        ]
       }
     },
+
     utilities: {
       '/': 'Gateway welcome page',
       '/api-docs': 'Swagger UI documentation',
@@ -309,11 +334,20 @@ app.get('/docs', (req, res) => {
   });
 });
 
+/**
+ * Alias docs endpoint for assignment compatibility
+ */
+app.get('/api-docs', (req, res) => {
+  res.redirect('/docs');
+});
+
+/**
+ * Services List Endpoint
+ */
 app.get('/services', (req, res) => {
   const servicesList = Object.entries(services).map(([key, service]) => ({
     name: service.name,
     path: service.path,
-    aliasPath: service.aliasPath || null,
     url: service.url
   }));
 
@@ -326,6 +360,9 @@ app.get('/services', (req, res) => {
   });
 });
 
+/**
+ * Statistics Endpoint
+ */
 app.get('/stats', (req, res) => {
   res.json({
     timestamp: new Date().toISOString(),
@@ -335,30 +372,56 @@ app.get('/stats', (req, res) => {
 });
 
 // =============== SERVICE PROXY ROUTES ===============
-app.use(services.product.path, incrementStats('product'));
-app.use(services.product.path, createServiceProxy('products', services.product.url));
 
-app.use(services.order.path, incrementStats('order'));
-app.use(services.order.path, createServiceProxy('orders', services.order.url));
+/**
+ * Product Service Routes
+ * All requests to /api/products/* are proxied to Product Service on 5001
+ */
+app.use('/api/products', (req, res, next) => {
+  requestStats.total++;
+  requestStats.byService.product++;
+  next();
+});
+app.use('/api/products', createServiceProxy('products', services.product.url));
 
-app.use(services.inventory.path, incrementStats('inventory'));
-app.use(services.inventory.path, createServiceProxy('inventory', services.inventory.url));
+/**
+ * Order Service Routes
+ * All requests to /api/orders/* are proxied to Order Service on 5002
+ */
+app.use('/api/orders', (req, res, next) => {
+  requestStats.total++;
+  requestStats.byService.order++;
+  next();
+});
+app.use('/api/orders', createServiceProxy('orders', services.order.url));
 
-app.use(services.payment.path, incrementStats('payment'));
-app.use(services.payment.path, createServiceProxy('payment', services.payment.url));
+/**
+ * Inventory Service Routes
+ * All requests to /api/inventory/* are proxied to Inventory Service on 5003
+ */
+app.use('/api/inventory', (req, res, next) => {
+  requestStats.total++;
+  requestStats.byService.inventory++;
+  next();
+});
+app.use('/api/inventory', createServiceProxy('inventory', services.inventory.url));
 
-// Backward-compatible alias: /api/payment/* -> /payments/*
-app.use(services.payment.aliasPath, incrementStats('payment'));
-app.use(
-  services.payment.aliasPath,
-  createServiceProxy(
-    'payment',
-    services.payment.url,
-    (path) => path.replace(/^\/api\/payment/, '/payments')
-  )
-);
+/**
+ * Payment Service Routes
+ * All requests to /api/payment/* are proxied to Payment Service on 5004
+ */
+app.use('/api/payment', (req, res, next) => {
+  requestStats.total++;
+  requestStats.byService.payment++;
+  next();
+});
+app.use('/api/payment', createServiceProxy('payment', services.payment.url));
 
 // =============== 404 HANDLER ===============
+
+/**
+ * 404 - Route not found
+ */
 app.use((req, res) => {
   const availablePaths = [
     '/',
@@ -367,11 +430,10 @@ app.use((req, res) => {
     '/health',
     '/services',
     '/stats',
-    services.product.path,
-    services.order.path,
-    services.inventory.path,
-    services.payment.path,
-    services.payment.aliasPath
+    '/api/products',
+    '/api/orders',
+    '/api/inventory',
+    '/api/payment'
   ];
 
   res.status(404).json({
@@ -380,11 +442,12 @@ app.use((req, res) => {
     path: req.path,
     method: req.method,
     availablePaths,
-    hint: `Try: GET http://localhost:${PORT}/docs for documentation`
+    hint: 'Try: GET http://localhost:' + PORT + '/docs for documentation'
   });
 });
 
-// =============== START SERVER ===============
+// =============== START GATEWAY ===============
+
 app.listen(PORT, () => {
   console.log(`
 ╔═══════════════════════════════════════════════════════╗
@@ -397,16 +460,15 @@ app.listen(PORT, () => {
 📊 Statistics:       http://localhost:${PORT}/stats
 
 🔗 ROUTED SERVICES:
-  /api/products    → Product Service (5001)
-  /api/orders      → Order Service (5002)
-  /api/inventory   → Inventory Service (5003)
-  /api/payments    → Payment Service (5004)
-  /api/payment     → Payment alias (5004)
+   /api/products    → Product Service (5001)
+   /api/orders      → Order Service (5002)
+   /api/inventory   → Inventory Service (5003)
+   /api/payment     → Payment Service (5004)
 
 🚀 QUICK TEST:
-  Direct:   curl http://localhost:${PORT}/api/products
-  Docs:     curl http://localhost:${PORT}/docs
-  Health:   curl http://localhost:${PORT}/health
+   Direct:   curl http://localhost:${PORT}/api/products
+   Docs:     curl http://localhost:${PORT}/docs
+   Health:   curl http://localhost:${PORT}/health
 
 Environment: ${process.env.NODE_ENV}
 `);

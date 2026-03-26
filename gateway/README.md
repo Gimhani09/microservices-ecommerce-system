@@ -1,265 +1,225 @@
-# API Gateway
+# 🌐 API Gateway
 
-Central entry point for all microservices in the e-commerce system.
+## 📝 Overview
 
-## Overview
+The **API Gateway** is the single entry point for all microservices in the e-commerce system. Every client request goes through the gateway, which then routes to the appropriate service.
 
-The API Gateway acts as a reverse proxy, routing requests to the appropriate microservices. It provides a unified interface for clients and handles cross-cutting concerns like logging and error handling.
-
-## Technology Stack
-
-- **Runtime**: Node.js
-- **Framework**: Express.js
-- **HTTP Client**: Axios
-- **Documentation**: Swagger/OpenAPI
-
-## Features
-
-- Single entry point for all microservices
-- Request routing and forwarding
-- Method preservation (GET, POST, DELETE, etc.)
-- Header and body forwarding
-- Comprehensive error handling
-- Service unavailable detection (503)
-- Request logging middleware
-- Swagger API documentation
-- Health check endpoint
-- Modular route organization
-
-## Architecture
+## 🏗️ Architecture
 
 ```
-Client Request
-      ↓
-  API Gateway (Port 5000)
-      ↓
-  ┌─────────┬──────────┬───────────┬──────────┐
-  ↓         ↓          ↓           ↓          ↓
-Products  Orders  Inventory  Payments  (More...)
-:5001     :5002     :5003      :5004
+Clients (Postman, Web, Mobile)
+          ↓
+    API Gateway (Port 5000)
+          ↓
+   ┌──┬──┬──┬────┐
+   ↓  ↓  ↓  ↓    ↓
+Product Order Inventory Payment
+(5001) (5002) (5003)   (5004)
 ```
 
-## Installation
+## 🚀 Installation & Setup
+
+### 1️⃣ Install Dependencies
 
 ```bash
-# Navigate to gateway directory
 cd gateway
-
-# Install dependencies
 npm install
 ```
 
-## Configuration
+### 2️⃣ Start the Gateway
 
-Create a `.env` file:
+```bash
+npm start
+```
 
-```env
+You should see:
+```
+╔═══════════════════════════════════════════════════════╗
+║          API GATEWAY STARTED ✓                        ║
+╚═══════════════════════════════════════════════════════╝
+
+🌐 Gateway URL:      http://localhost:5000
+📚 Documentation:    http://localhost:5000/docs
+```
+
+## 📚 Gateway Endpoints
+
+### 1. Root Endpoint
+```
+GET http://localhost:5000/
+```
+
+Returns gateway info and quick start guide.
+
+### 2. API Documentation
+```
+GET http://localhost:5000/docs
+```
+
+Full API documentation for all available routes.
+
+### 3. Gateway Health Check
+```
+GET http://localhost:5000/health
+```
+
+Returns gateway status.
+
+### 4. List All Services
+```
+GET http://localhost:5000/services
+```
+
+Shows all registered microservices.
+
+### 5. Request Statistics
+```
+GET http://localhost:5000/stats
+```
+
+View request statistics by service.
+
+## 🔗 Service Routes
+
+### Product Service
+Gateway Route: `/api/products`
+Forwards to: `http://localhost:5001`
+
+```
+GET    /api/products         → Get all products
+GET    /api/products/:id     → Get specific product
+POST   /api/products         → Create product
+DELETE /api/products/:id     → Delete product
+```
+
+## 🧪 Testing the Gateway
+
+### Test 1: Get Products via Gateway
+
+```bash
+curl http://localhost:5000/api/products
+```
+
+**Expected Response:**
+```json
+{
+  "success": true,
+  "message": "Retrieved 3 products",
+  "data": [
+    {"id": 1, "name": "Laptop", "price": 999.99, "stock": 10},
+    ...
+  ]
+}
+```
+
+### Test 2: Create Product via Gateway
+
+```bash
+curl -X POST http://localhost:5000/api/products \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Test","price":99.99,"stock":50}'
+```
+
+### Test 3: Check Gateway Health
+
+```bash
+curl http://localhost:5000/health
+```
+
+### Test 4: View Documentation
+
+```bash
+curl http://localhost:5000/docs
+```
+
+### Test 5: View Services
+
+```bash
+curl http://localhost:5000/services
+```
+
+## 🛠️ How the Gateway Works
+
+### Request Flow
+
+```
+1. Client sends request to gateway:
+   GET http://localhost:5000/api/products
+
+2. Gateway receives the request
+
+3. Gateway analyzes the path:
+   "/api/products" → Route to Product Service
+
+4. Gateway rewrites the path:
+   /api/products → /products (removes /api prefix)
+
+5. Gateway forwards to Product Service:
+   GET http://localhost:5001/products
+
+6. Product Service returns response:
+   { success: true, data: [...] }
+
+7. Gateway forwards response to client:
+   Client receives the same response
+```
+
+## 📊 Key Features
+
+✅ **Single Entry Point** - Clients only need gateway URL  
+✅ **Automatic Routing** - Routes requests based on path  
+✅ **Health Monitoring** - Check service status  
+✅ **Statistics** - Track requests per service  
+✅ **Error Handling** - Handle unavailable services  
+✅ **CORS Enabled** - Cross-origin requests supported  
+✅ **Request Logging** - Log all requests  
+✅ **Path Rewriting** - Automatic path manipulation  
+
+## ⚙️ Configuration
+
+Edit `.env` to change service URLs:
+
+```
 PORT=5000
-NODE_ENV=development
-
-# Microservice URLs
 PRODUCT_SERVICE_URL=http://localhost:5001
 ORDER_SERVICE_URL=http://localhost:5002
 INVENTORY_SERVICE_URL=http://localhost:5003
 PAYMENT_SERVICE_URL=http://localhost:5004
 ```
 
-## Running the Gateway
+## 🎯 Integration with Other Services
 
-```bash
-# Development mode (with auto-reload)
-npm run dev
+When other services are implemented:
 
-# Production mode
-npm start
-```
+1. **Order Service** - Automatically route `/api/orders/*` to port 5002
+2. **Inventory Service** - Automatically route `/api/inventory/*` to port 5003
+3. **Payment Service** - Automatically route `/api/payment/*` to port 5004
 
-The gateway will start on **PORT 5000**
+No changes needed to clients!
 
-## API Routes
+## 💡 Benefits
 
-### Product Service Routes
-```
-GET    /api/products           → Get all products
-POST   /api/products           → Create a product
-GET    /api/products/:id       → Get product by ID
-DELETE /api/products/:id       → Delete product
-```
+- **Simplicity**: Clients don't need to know internal service ports
+- **Flexibility**: Move services without updating clients
+- **Scalability**: Easy to add new services
+- **Monitoring**: Centralized request logging
+- **Maintenance**: Update service URLs in one place
+- **Reliability**: Handle service failures gracefully
 
-### Order Service Routes
-```
-GET    /api/orders             → Get all orders
-POST   /api/orders             → Create an order
-GET    /api/orders/:id         → Get order by ID
-DELETE /api/orders/:id         → Delete order
-```
+## 📋 Quick Reference
 
-### Inventory Service Routes
-```
-GET    /api/inventory          → Get inventory
-POST   /api/inventory          → Update inventory
-GET    /api/inventory/:id      → Get inventory by product ID
-```
+| Endpoint | Purpose |
+|----------|---------|
+| `/` | Gateway info |
+| `/docs` | API documentation |
+| `/health` | Gateway status |
+| `/services` | List services |
+| `/stats` | Request statistics |
+| `/api/products` | Product Service |
+| `/api/orders` | Order Service |
+| `/api/inventory` | Inventory Service |
+| `/api/payment` | Payment Service |
 
-### Payment Service Routes
-```
-GET    /api/payments           → Get all payments
-POST   /api/payments           → Process a payment
-GET    /api/payments/:id       → Get payment by ID
-```
+---
 
-### System Routes
-```
-GET    /health                 → Gateway health check
-GET    /api-docs               → Swagger documentation
-```
-
-## Testing with cURL
-
-### Test Gateway Health
-```bash
-curl http://localhost:5000/health
-```
-
-### Create Product (via Gateway)
-```bash
-curl -X POST http://localhost:5000/api/products \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Laptop",
-    "price": 999.99,
-    "stock": 10
-  }'
-```
-
-### Get All Products (via Gateway)
-```bash
-curl http://localhost:5000/api/products
-```
-
-### Get Product by ID (via Gateway)
-```bash
-curl http://localhost:5000/api/products/1
-```
-
-### Process Payment (via Gateway)
-```bash
-curl -X POST http://localhost:5000/api/payments \
-  -H "Content-Type: application/json" \
-  -d '{
-    "orderId": 101,
-    "amount": 299.99
-  }'
-```
-
-### Get All Payments (via Gateway)
-```bash
-curl http://localhost:5000/api/payments
-```
-
-## Error Handling
-
-### Service Unavailable (503)
-When a microservice is down or unreachable:
-```json
-{
-  "success": false,
-  "error": "Product Service unavailable",
-  "message": "Unable to reach Product Service. Please ensure it is running."
-}
-```
-
-### Route Not Found (404)
-When accessing a non-existent route:
-```json
-{
-  "success": false,
-  "error": "Route not found",
-  "path": "/api/unknown",
-  "method": "GET",
-  "message": "The requested endpoint does not exist"
-}
-```
-
-### Internal Server Error (500)
-For unexpected errors:
-```json
-{
-  "success": false,
-  "error": "Internal server error",
-  "message": "Error details..."
-}
-```
-
-## Documentation
-
-Access interactive Swagger documentation:
-```
-http://localhost:5000/api-docs
-```
-
-## Request Flow
-
-1. Client sends request to Gateway
-2. Gateway logs the request
-3. Gateway routes to appropriate service
-4. Gateway forwards method, headers, and body
-5. Service processes request
-6. Gateway returns service response to client
-7. If service unavailable, Gateway returns 503
-
-## Modular Route Structure
-
-Routes are organized in separate files:
-- `routes/productRoutes.js` - Product service forwarding
-- `routes/orderRoutes.js` - Order service forwarding
-- `routes/inventoryRoutes.js` - Inventory service forwarding
-- `routes/paymentRoutes.js` - Payment service forwarding
-
-Each route handler:
-- Constructs target URL
-- Preserves HTTP method
-- Forwards headers and body
-- Handles service errors
-- Returns appropriate status codes
-
-## Running the Full System
-
-1. Start Product Service:
-```bash
-cd product-service && npm run dev
-```
-
-2. Start Payment Service:
-```bash
-cd payment-service && npm run dev
-```
-
-3. Start API Gateway:
-```bash
-cd gateway && npm run dev
-```
-
-4. Access via Gateway:
-```
-http://localhost:5000/api-docs
-```
-
-## Monitoring
-
-The gateway logs all incoming requests:
-```
-[2026-03-26T10:30:00.000Z] GET /api/products
-[2026-03-26T10:30:01.000Z] POST /api/payments
-```
-
-## Future Enhancements
-
-- Authentication & Authorization
-- Rate limiting
-- Request/Response caching
-- Load balancing
-- Circuit breaker pattern
-- Request/Response transformation
-- Analytics and monitoring
-- API versioning support
+**Status:** ✅ **Complete & Running**
