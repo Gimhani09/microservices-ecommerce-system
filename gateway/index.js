@@ -427,6 +427,8 @@ function createServiceProxy(serviceName, targetUrl) {
   return createProxyMiddleware({
     target: targetUrl,
     changeOrigin: true,
+    timeout: 30000, // 30 second timeout
+    proxyTimeout: 30000,
     pathRewrite: (path) => {
       // Preserve resource path by only removing the /api prefix.
       // e.g., /api/products/1 -> /products/1
@@ -680,7 +682,7 @@ app.listen(PORT, () => {
    /api/products    → Product Service (5001)
    /api/orders      → Order Service (5002)
    /api/inventory   → Inventory Service (5003)
-   /api/payment     → Payment Service (5004)
+   /api/payments    → Payment Service (5004)
 
 🚀 QUICK TEST:
    Direct:   curl http://localhost:${PORT}/api/products
