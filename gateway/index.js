@@ -127,8 +127,106 @@ const swaggerSpec = swaggerJsdoc({
       '/api/inventory': {
         get: {
           tags: ['Inventory'],
-          summary: 'Get inventory via gateway',
+          summary: 'Get all inventory records via gateway',
           responses: { '200': { description: 'Forwarded to Inventory Service' } }
+        },
+        post: {
+          tags: ['Inventory'],
+          summary: 'Add a new inventory record via gateway',
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    productId: { type: 'integer', example: 1 },
+                    productName: { type: 'string', example: 'Laptop' },
+                    quantity: { type: 'integer', example: 10 },
+                    warehouseLocation: { type: 'string', example: 'A1' }
+                  },
+                  required: ['productId', 'productName', 'quantity', 'warehouseLocation']
+                }
+              }
+            }
+          },
+          responses: { '201': { description: 'Inventory record created' }, '400': { description: 'Invalid input' } }
+        }
+      },
+      '/api/inventory/{id}': {
+        get: {
+          tags: ['Inventory'],
+          summary: 'Get a specific inventory record via gateway',
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'integer' } }
+          ],
+          responses: { '200': { description: 'Inventory record returned' }, '404': { description: 'Record not found' } }
+        },
+        put: {
+          tags: ['Inventory'],
+          summary: 'Update full inventory record via gateway',
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'integer' } }
+          ],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    productId: { type: 'integer', example: 1 },
+                    productName: { type: 'string', example: 'Laptop' },
+                    quantity: { type: 'integer', example: 20 },
+                    warehouseLocation: { type: 'string', example: 'A2' }
+                  }
+                }
+              }
+            }
+          },
+          responses: { '200': { description: 'Record updated' }, '404': { description: 'Record not found' } }
+        },
+        delete: {
+          tags: ['Inventory'],
+          summary: 'Delete an inventory record via gateway',
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'integer' } }
+          ],
+          responses: { '200': { description: 'Record deleted' }, '404': { description: 'Record not found' } }
+        }
+      },
+      '/api/inventory/{id}/stock': {
+        patch: {
+          tags: ['Inventory'],
+          summary: 'Adjust stock quantity via gateway',
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'integer' } }
+          ],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    quantity: { type: 'integer', example: 5 }
+                  },
+                  required: ['quantity']
+                }
+              }
+            }
+          },
+          responses: { '200': { description: 'Stock adjusted' }, '404': { description: 'Record not found' } }
+        }
+      },
+      '/api/inventory/check/{productId}': {
+        get: {
+          tags: ['Inventory'],
+          summary: 'Check stock availability for a product via gateway',
+          parameters: [
+            { name: 'productId', in: 'path', required: true, schema: { type: 'integer' } }
+          ],
+          responses: { '200': { description: 'Stock availability returned' }, '404': { description: 'Product not found in inventory' } }
         }
       },
       '/api/payment': {
