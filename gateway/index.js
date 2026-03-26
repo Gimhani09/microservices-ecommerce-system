@@ -93,6 +93,22 @@ const swaggerSpec = swaggerJsdoc({
           tags: ['Products'],
           summary: 'Create new product',
           description: 'Create a new product (requires: name, price, stock)',
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['name', 'price', 'stock'],
+                  properties: {
+                    name: { type: 'string', example: 'Laptop' },
+                    price: { type: 'number', example: 899.99 },
+                    stock: { type: 'integer', example: 10 }
+                  }
+                }
+              }
+            }
+          },
           responses: { '201': { description: 'Product created' }, '400': { description: 'Invalid input' } }
         }
       },
@@ -121,6 +137,26 @@ const swaggerSpec = swaggerJsdoc({
           tags: ['Orders'],
           summary: 'Create new order',
           description: 'Place a new order (requires: customerId, items, totalPrice)',
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['customerId', 'items', 'totalPrice'],
+                  properties: {
+                    customerId: { type: 'integer', example: 1 },
+                    items: { 
+                      type: 'array',
+                      items: { type: 'object', properties: { productId: { type: 'integer' }, quantity: { type: 'integer' } } },
+                      example: [{ productId: 1, quantity: 2 }]
+                    },
+                    totalPrice: { type: 'number', example: 1799.98 }
+                  }
+                }
+              }
+            }
+          },
           responses: { '201': { description: 'Order created' }, '400': { description: 'Invalid input' } }
         }
       },
@@ -135,6 +171,25 @@ const swaggerSpec = swaggerJsdoc({
           tags: ['Orders'],
           summary: 'Update order',
           parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    customerId: { type: 'integer', example: 1 },
+                    items: { 
+                      type: 'array',
+                      items: { type: 'object' },
+                      example: [{ productId: 1, quantity: 2 }]
+                    },
+                    totalPrice: { type: 'number', example: 1799.98 }
+                  }
+                }
+              }
+            }
+          },
           responses: { '200': { description: 'Order updated' }, '404': { description: 'Order not found' } }
         },
         delete: {
@@ -150,6 +205,20 @@ const swaggerSpec = swaggerJsdoc({
           summary: 'Update order status',
           parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
           description: 'Update order status (e.g., pending, confirmed, shipped)',
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['status'],
+                  properties: {
+                    status: { type: 'string', example: 'confirmed', enum: ['pending', 'confirmed', 'shipped', 'delivered'] }
+                  }
+                }
+              }
+            }
+          },
           responses: { '200': { description: 'Status updated' }, '404': { description: 'Order not found' } }
         }
       },
@@ -164,6 +233,21 @@ const swaggerSpec = swaggerJsdoc({
           tags: ['Inventory'],
           summary: 'Add inventory item',
           description: 'Add new inventory record (requires: productId, quantity)',
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['productId', 'quantity'],
+                  properties: {
+                    productId: { type: 'integer', example: 1 },
+                    quantity: { type: 'integer', example: 50 }
+                  }
+                }
+              }
+            }
+          },
           responses: { '201': { description: 'Inventory item created' } }
         }
       },
@@ -178,6 +262,20 @@ const swaggerSpec = swaggerJsdoc({
           tags: ['Inventory'],
           summary: 'Update inventory',
           parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    productId: { type: 'integer', example: 1 },
+                    quantity: { type: 'integer', example: 50 }
+                  }
+                }
+              }
+            }
+          },
           responses: { '200': { description: 'Inventory updated' }, '404': { description: 'Not found' } }
         },
         delete: {
@@ -202,6 +300,20 @@ const swaggerSpec = swaggerJsdoc({
           summary: 'Update product stock quantity',
           parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
           description: 'Adjust stock quantity (increase or decrease)',
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['quantity'],
+                  properties: {
+                    quantity: { type: 'integer', example: 10 }
+                  }
+                }
+              }
+            }
+          },
           responses: { '200': { description: 'Stock updated' }, '400': { description: 'Invalid quantity' } }
         }
       },
@@ -215,6 +327,23 @@ const swaggerSpec = swaggerJsdoc({
           tags: ['Payment'],
           summary: 'Process payment',
           description: 'Process a new payment transaction',
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['amount', 'orderId', 'method'],
+                  properties: {
+                    amount: { type: 'number', example: 99.99 },
+                    orderId: { type: 'integer', example: 1 },
+                    method: { type: 'string', example: 'credit_card', enum: ['credit_card', 'debit_card', 'paypal'] },
+                    status: { type: 'string', example: 'completed', enum: ['pending', 'completed', 'failed'] }
+                  }
+                }
+              }
+            }
+          },
           responses: { '201': { description: 'Payment processed' }, '400': { description: 'Invalid payment data' } }
         }
       },
