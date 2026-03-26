@@ -237,8 +237,96 @@ const swaggerSpec = swaggerJsdoc({
       '/api/inventory': {
         get: {
           tags: ['Inventory'],
-          summary: 'Get inventory via gateway',
-          responses: { '200': { description: 'Forwarded to Inventory Service' } }
+          summary: 'Get all inventory',
+          description: 'Retrieve all inventory records',
+          responses: { '200': { description: 'List of inventory items' } }
+        },
+        post: {
+          tags: ['Inventory'],
+          summary: 'Add inventory item',
+          description: 'Add new inventory record (requires: productId, quantity)',
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['productId', 'quantity'],
+                  properties: {
+                    productId: { type: 'integer', example: 1 },
+                    quantity: { type: 'integer', example: 50 }
+                  }
+                }
+              }
+            }
+          },
+          responses: { '201': { description: 'Inventory item created' } }
+        }
+      },
+      '/api/inventory/{id}': {
+        get: {
+          tags: ['Inventory'],
+          summary: 'Get inventory by ID',
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
+          responses: { '200': { description: 'Inventory details' }, '404': { description: 'Not found' } }
+        },
+        put: {
+          tags: ['Inventory'],
+          summary: 'Update inventory',
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    productId: { type: 'integer', example: 1 },
+                    quantity: { type: 'integer', example: 50 }
+                  }
+                }
+              }
+            }
+          },
+          responses: { '200': { description: 'Inventory updated' }, '404': { description: 'Not found' } }
+        },
+        delete: {
+          tags: ['Inventory'],
+          summary: 'Delete inventory item',
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
+          responses: { '200': { description: 'Inventory deleted' }, '404': { description: 'Not found' } }
+        }
+      },
+      '/api/inventory/check/{productId}': {
+        get: {
+          tags: ['Inventory'],
+          summary: 'Check product stock availability',
+          parameters: [{ name: 'productId', in: 'path', required: true, schema: { type: 'integer' } }],
+          description: 'Check if product is in stock',
+          responses: { '200': { description: 'Stock status' }, '404': { description: 'Product not found' } }
+        }
+      },
+      '/api/inventory/{id}/stock': {
+        patch: {
+          tags: ['Inventory'],
+          summary: 'Update product stock quantity',
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
+          description: 'Adjust stock quantity (increase or decrease)',
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['quantity'],
+                  properties: {
+                    quantity: { type: 'integer', example: 10 }
+                  }
+                }
+              }
+            }
+          },
+          responses: { '200': { description: 'Stock updated' }, '400': { description: 'Invalid quantity' } }
         }
       },
       '/api/payments': {
