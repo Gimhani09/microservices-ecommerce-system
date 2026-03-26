@@ -1,18 +1,18 @@
 {
-  "name": "api-gateway",
+  "name": "product-service",
   "version": "1.0.0",
-  "description": "API Gateway for E-Commerce Microservices System",
+  "description": "Product Service for E-Commerce Microservices System",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js"
   },
-  "keywords": ["gateway", "microservices", "ecommerce"],
+  "keywords": ["microservices", "product", "ecommerce"],
   "author": "",
   "license": "ISC",
   "dependencies": {
     "express": "^4.18.2",
-    "http-proxy-middleware": "^2.0.6",
+    "swagger-ui-express": "^4.6.3",
     "dotenv": "^16.0.3",
     "cors": "^2.8.5"
   },
