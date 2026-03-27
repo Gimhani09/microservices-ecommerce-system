@@ -327,12 +327,10 @@ const swaggerSpec = swaggerJsdoc({
               'application/json': {
                 schema: {
                   type: 'object',
-                  required: ['amount', 'orderId', 'method'],
+                  required: ['orderId', 'amount'],
                   properties: {
-                    amount: { type: 'number', example: 99.99 },
-                    orderId: { type: 'integer', example: 1 },
-                    method: { type: 'string', example: 'credit_card', enum: ['credit_card', 'debit_card', 'paypal'] },
-                    status: { type: 'string', example: 'completed', enum: ['pending', 'completed', 'failed'] }
+                    orderId: { type: 'integer', example: 101 },
+                    amount: { type: 'number', example: 299.99 }
                   }
                 }
               }
@@ -345,8 +343,57 @@ const swaggerSpec = swaggerJsdoc({
         get: {
           tags: ['Payment'],
           summary: 'Get payment by ID',
-          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
           responses: { '200': { description: 'Payment details' }, '404': { description: 'Payment not found' } }
+        },
+        patch: {
+          tags: ['Payment'],
+          summary: 'Update payment status',
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['status'],
+                  properties: {
+                    status: {
+                      type: 'string',
+                      enum: ['SUCCESS', 'FAILED', 'REFUNDED'],
+                      example: 'SUCCESS'
+                    }
+                  }
+                }
+              }
+            }
+          },
+          responses: {
+            '200': { description: 'Payment status updated' },
+            '400': { description: 'Invalid status or ID' },
+            '404': { description: 'Payment not found' }
+          }
+        }
+      },
+      '/api/payments/{id}/refund': {
+        post: {
+          tags: ['Payment'],
+          summary: 'Refund a payment',
+          description: 'Refund a previously successful payment',
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
+          responses: {
+            '200': { description: 'Payment refunded' },
+            '400': { description: 'Refund not allowed' },
+            '404': { description: 'Payment not found' }
+          }
+        }
+      },
+      '/api/payments/order/{orderId}': {
+        get: {
+          tags: ['Payment'],
+          summary: 'Get payments for an order',
+          parameters: [{ name: 'orderId', in: 'path', required: true, schema: { type: 'integer' } }],
+          responses: { '200': { description: 'List of payments for order' }, '400': { description: 'Invalid order ID' } }
         }
       }
     }
@@ -425,6 +472,15 @@ function createServiceProxy(serviceName, targetUrl) {
     pathRewrite: (path) => {
       // Preserve resource path by only removing the /api prefix.
       // e.g., /api/products/1 -> /products/1
+      // Handle /api/payments (primary route)
+      if (path.startsWith('/api/payments')) {
+        return path.replace(/^\/api/, '');
+      }
+      // Handle /api/payment (backward compat alias) -> /payments
+      if (path.startsWith('/api/payment')) {
+        return path.replace(/^\/api\/payment/, '/payments');
+      }
+      // Default: remove /api prefix
       return path.replace(/^\/api/, '');
     },
     onProxyReq: (proxyReq, req, res) => {
@@ -638,6 +694,14 @@ app.use('/api/payments', (req, res, next) => {
 });
 app.use('/api/payments', createServiceProxy('payment', services.payment.url));
 
+// Backward-compatible alias: /api/payment -> /payments
+app.use('/api/payment', (req, res, next) => {
+  requestStats.total++;
+  requestStats.byService.payment++;
+  next();
+});
+app.use('/api/payment', createServiceProxy('payment', services.payment.url));
+
 // =============== 404 HANDLER ===============
 
 /**
@@ -654,7 +718,8 @@ app.use((req, res) => {
     '/api/products',
     '/api/orders',
     '/api/inventory',
-    '/api/payments'
+    '/api/payments',
+    '/api/payment'
   ];
 
   res.status(404).json({

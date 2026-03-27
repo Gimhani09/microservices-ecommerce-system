@@ -37,6 +37,8 @@ let payments = [];
 // Counter for generating unique IDs
 let paymentIdCounter = 1;
 
+const VALID_STATUSES = ['SUCCESS', 'FAILED', 'REFUNDED'];
+
 // =============== SWAGGER DOCUMENTATION ===============
 const swaggerDocs = {
   openapi: '3.0.0',
@@ -131,6 +133,24 @@ const swaggerDocs = {
         }
       }
     },
+    '/payments/order/{orderId}': {
+      get: {
+        summary: 'Get payments for an order',
+        tags: ['Payments'],
+        parameters: [
+          {
+            name: 'orderId',
+            in: 'path',
+            required: true,
+            schema: { type: 'number' }
+          }
+        ],
+        responses: {
+          200: { description: 'Payments for the order' },
+          400: { description: 'Invalid order ID' }
+        }
+      }
+    },
     '/payments/{id}': {
       get: {
         summary: 'Get a specific payment',
@@ -145,6 +165,59 @@ const swaggerDocs = {
         ],
         responses: {
           200: { description: 'Payment found' },
+          404: { description: 'Payment not found' }
+        }
+      },
+      patch: {
+        summary: 'Update payment status',
+        tags: ['Payments'],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: { type: 'number' }
+          }
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  status: {
+                    type: 'string',
+                    enum: VALID_STATUSES
+                  }
+                },
+                required: ['status']
+              }
+            }
+          }
+        },
+        responses: {
+          200: { description: 'Payment status updated' },
+          400: { description: 'Invalid status or ID' },
+          404: { description: 'Payment not found' }
+        }
+      }
+    },
+    '/payments/{id}/refund': {
+      post: {
+        summary: 'Create a refund for a payment',
+        tags: ['Payments'],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: { type: 'number' }
+          }
+        ],
+        responses: {
+          200: { description: 'Refund processed' },
+          400: { description: 'Refund not allowed' },
           404: { description: 'Payment not found' }
         }
       }
@@ -200,6 +273,15 @@ function processPayment() {
   // 80% success rate
   const random = Math.random();
   return random < 0.8 ? 'SUCCESS' : 'FAILED';
+}
+
+function parseIdParam(param) {
+  const numericId = parseInt(param, 10);
+  return Number.isNaN(numericId) ? null : numericId;
+}
+
+function findPaymentById(id) {
+  return payments.find(p => p.id === id);
 }
 
 // =============== ROUTES ===============
@@ -298,6 +380,36 @@ app.get('/payments', (req, res) => {
 });
 
 /**
+ * GET /payments/order/:orderId
+ * Get payments for a specific order
+ */
+app.get('/payments/order/:orderId', (req, res) => {
+  try {
+    const orderId = parseIdParam(req.params.orderId);
+
+    if (orderId === null) {
+      return res.status(400).json({
+        success: false,
+        error: 'Order ID must be a number'
+      });
+    }
+
+    const orderPayments = payments.filter(p => p.orderId === orderId);
+
+    res.json({
+      success: true,
+      message: `Retrieved ${orderPayments.length} payments for order ${orderId}`,
+      data: orderPayments
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error: ' + error.message
+    });
+  }
+});
+
+/**
  * GET /payments/:id
  * Get a specific payment by ID
  *
@@ -312,10 +424,10 @@ app.get('/payments', (req, res) => {
  */
 app.get('/payments/:id', (req, res) => {
   try {
-    const paymentId = parseInt(req.params.id);
+    const paymentId = parseIdParam(req.params.id);
 
     // Validate ID is a number
-    if (isNaN(paymentId)) {
+    if (paymentId === null) {
       return res.status(400).json({
         success: false,
         error: 'Payment ID must be a number'
@@ -323,7 +435,7 @@ app.get('/payments/:id', (req, res) => {
     }
 
     // Find payment by ID
-    const payment = payments.find(p => p.id === paymentId);
+    const payment = findPaymentById(paymentId);
 
     if (!payment) {
       return res.status(404).json({
@@ -341,6 +453,78 @@ app.get('/payments/:id', (req, res) => {
       success: false,
       error: 'Internal server error: ' + error.message
     });
+  }
+});
+
+/**
+ * PATCH /payments/:id
+ * Update payment status
+ */
+app.patch('/payments/:id', (req, res) => {
+  try {
+    const paymentId = parseIdParam(req.params.id);
+    const { status } = req.body;
+
+    if (paymentId === null) {
+      return res.status(400).json({ success: false, error: 'Payment ID must be a number' });
+    }
+
+    if (!status || !VALID_STATUSES.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        error: `Status must be one of: ${VALID_STATUSES.join(', ')}`
+      });
+    }
+
+    const payment = findPaymentById(paymentId);
+    if (!payment) {
+      return res.status(404).json({ success: false, error: `Payment with ID ${paymentId} not found` });
+    }
+
+    payment.status = status;
+
+    res.json({
+      success: true,
+      message: 'Payment status updated',
+      data: payment
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Internal server error: ' + error.message });
+  }
+});
+
+/**
+ * POST /payments/:id/refund
+ * Mark payment as refunded (only if previously SUCCESS)
+ */
+app.post('/payments/:id/refund', (req, res) => {
+  try {
+    const paymentId = parseIdParam(req.params.id);
+    if (paymentId === null) {
+      return res.status(400).json({ success: false, error: 'Payment ID must be a number' });
+    }
+
+    const payment = findPaymentById(paymentId);
+    if (!payment) {
+      return res.status(404).json({ success: false, error: `Payment with ID ${paymentId} not found` });
+    }
+
+    if (payment.status !== 'SUCCESS') {
+      return res.status(400).json({
+        success: false,
+        error: 'Only successful payments can be refunded'
+      });
+    }
+
+    payment.status = 'REFUNDED';
+
+    res.json({
+      success: true,
+      message: 'Payment refunded',
+      data: payment
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Internal server error: ' + error.message });
   }
 });
 
