@@ -19,12 +19,14 @@
 // =============== IMPORTS ===============
 const express = require('express');
 const cors = require('cors');
+const axios = require('axios');
 const swaggerUi = require('swagger-ui-express');
 require('dotenv').config();
 
 // =============== EXPRESS SETUP ===============
 const app = express();
 const PORT = process.env.PORT || 5004;
+const ORDER_SERVICE_URL = process.env.ORDER_SERVICE_URL || 'http://localhost:5002';
 
 // =============== MIDDLEWARE ===============
 app.use(cors());
@@ -284,6 +286,31 @@ function findPaymentById(id) {
   return payments.find(p => p.id === id);
 }
 
+/**
+ * Checks the Order Service to verify an order exists.
+ * Returns the order object or null.
+ */
+async function getOrder(orderId) {
+  try {
+    const response = await axios.get(`${ORDER_SERVICE_URL}/orders/${orderId}`);
+    return response.data.success ? response.data.data : null;
+  } catch (error) {
+    return null;
+  }
+}
+
+/**
+ * Updates order status in Order Service after payment.
+ * CONFIRMED for successful payment, CANCELLED for failed.
+ */
+async function updateOrderStatus(orderId, status) {
+  try {
+    await axios.patch(`${ORDER_SERVICE_URL}/orders/${orderId}/status`, { status });
+  } catch (error) {
+    console.error(`Failed to update order ${orderId} status to ${status}:`, error.message);
+  }
+}
+
 // =============== ROUTES ===============
 
 /**
@@ -309,12 +336,11 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
  *   "data": { id, orderId, amount, status }
  * }
  */
-app.post('/payments', (req, res) => {
+app.post('/payments', async (req, res) => {
   try {
-    // Extract data from request body
+    // 1. Extract and validate payment data
     const { orderId, amount } = req.body;
 
-    // Validate the payment data
     const validation = validatePayment({ orderId, amount });
     if (!validation.isValid) {
       return res.status(400).json({
@@ -323,26 +349,38 @@ app.post('/payments', (req, res) => {
       });
     }
 
-    // Simulate payment processing
+    // 2. Verify the order exists in Order Service
+    const order = await getOrder(orderId);
+    if (!order) {
+      return res.status(400).json({
+        success: false,
+        error: `Order with ID ${orderId} not found in Order Service`
+      });
+    }
+
+    // 3. Simulate payment processing (80% success rate)
     const status = processPayment();
 
-    // Create new payment object
+    // 4. Create new payment record
     const newPayment = {
       id: paymentIdCounter++,
       orderId,
       amount,
-      status
+      status,
+      processedAt: new Date().toISOString()
     };
 
-    // Add payment to array
     payments.push(newPayment);
 
-    // Return response based on payment status
+    // 5. Update order status based on payment result
+    const orderStatus = status === 'SUCCESS' ? 'CONFIRMED' : 'CANCELLED';
+    await updateOrderStatus(orderId, orderStatus);
+
     res.status(201).json({
       success: status === 'SUCCESS',
       message: status === 'SUCCESS'
-        ? 'Payment processed successfully'
-        : 'Payment processing failed',
+        ? `Payment successful. Order #${orderId} is now CONFIRMED.`
+        : `Payment failed. Order #${orderId} has been CANCELLED.`,
       data: newPayment
     });
   } catch (error) {

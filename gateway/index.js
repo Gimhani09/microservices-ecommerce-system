@@ -119,11 +119,57 @@ const swaggerSpec = swaggerJsdoc({
           parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
           responses: { '200': { description: 'Product details' }, '404': { description: 'Product not found' } }
         },
+        put: {
+          tags: ['Products'],
+          summary: 'Update product',
+          description: 'Fully update a product (name, price, stock)',
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['name', 'price', 'stock'],
+                  properties: {
+                    name:  { type: 'string',  example: 'Laptop Pro' },
+                    price: { type: 'number',  example: 1199.99 },
+                    stock: { type: 'integer', example: 25 }
+                  }
+                }
+              }
+            }
+          },
+          responses: { '200': { description: 'Product updated' }, '400': { description: 'Invalid input' }, '404': { description: 'Product not found' } }
+        },
         delete: {
           tags: ['Products'],
           summary: 'Delete product',
           parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
           responses: { '200': { description: 'Product deleted' }, '404': { description: 'Product not found' } }
+        }
+      },
+      '/api/products/{id}/stock': {
+        patch: {
+          tags: ['Products'],
+          summary: 'Adjust product stock',
+          description: 'Positive to add stock, negative to reduce (e.g. -2 after an order)',
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['adjustment'],
+                  properties: {
+                    adjustment: { type: 'integer', example: -2 }
+                  }
+                }
+              }
+            }
+          },
+          responses: { '200': { description: 'Stock adjusted' }, '400': { description: 'Invalid adjustment or insufficient stock' }, '404': { description: 'Product not found' } }
         }
       },
       '/api/orders': {
@@ -157,11 +203,11 @@ const swaggerSpec = swaggerJsdoc({
                         type: 'object',
                         required: ['productId', 'quantity'],
                         properties: {
-                          productId: { type: 'string', example: 'p001' },
+                          productId: { type: 'integer', example: 1 },
                           quantity: { type: 'integer', example: 2, minimum: 1 }
                         }
                       },
-                      example: [{ productId: 'p001', quantity: 2 }]
+                      example: [{ productId: 1, quantity: 2 }]
                     }
                   }
                 }

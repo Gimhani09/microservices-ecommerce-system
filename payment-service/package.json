@@ -7,14 +7,19 @@
     "start": "node index.js",
     "dev": "nodemon index.js"
   },
-  "keywords": ["microservices", "payment", "ecommerce"],
+  "keywords": [
+    "microservices",
+    "payment",
+    "ecommerce"
+  ],
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "express": "^4.18.2",
-    "swagger-ui-express": "^4.6.3",
+    "axios": "^1.14.0",
+    "cors": "^2.8.5",
     "dotenv": "^16.0.3",
-    "cors": "^2.8.5"
+    "express": "^4.18.2",
+    "swagger-ui-express": "^4.6.3"
   },
   "devDependencies": {
     "nodemon": "^2.0.22"

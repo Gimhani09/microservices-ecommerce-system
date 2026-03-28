@@ -7,8 +7,8 @@ const swaggerJsdoc = require('swagger-jsdoc');
 
 const app = express();
 const PORT = process.env.PORT || 5002;
-const PRODUCT_SERVICE_URL = process.env.PRODUCT_SERVICE_URL || 'http://localhost:5001';
-const ENABLE_PRODUCT_VALIDATION = process.env.ENABLE_PRODUCT_VALIDATION === 'true';
+const PRODUCT_SERVICE_URL   = process.env.PRODUCT_SERVICE_URL   || 'http://localhost:5001';
+const INVENTORY_SERVICE_URL = process.env.INVENTORY_SERVICE_URL || 'http://localhost:5003';
 
 // Middleware
 app.use(cors());
@@ -193,8 +193,8 @@ const validateOrderInput = (data) => {
   } else {
     // Validate each item
     data.items.forEach((item, index) => {
-      if (!item.productId || typeof item.productId !== 'string') {
-        errors.push(`items[${index}].productId is required and must be a string`);
+      if (item.productId === undefined || item.productId === null || !Number.isInteger(Number(item.productId)) || Number(item.productId) <= 0) {
+        errors.push(`items[${index}].productId is required and must be a positive integer`);
       }
       if (!item.quantity || typeof item.quantity !== 'number' || item.quantity <= 0) {
         errors.push(`items[${index}].quantity must be a positive integer`);
@@ -206,15 +206,48 @@ const validateOrderInput = (data) => {
 };
 
 /**
- * Validates product existence by calling product-service
+ * Fetches product details from Product Service
+ * Returns { id, name, price, stock } or null if not found
  */
-const validateProduct = async (productId) => {
+const getProduct = async (productId) => {
   try {
     const response = await axios.get(`${PRODUCT_SERVICE_URL}/products/${productId}`);
-    return response.data.success === true;
+    return response.data.success ? response.data.data : null;
   } catch (error) {
-    // Product not found or service unavailable
-    return false;
+    return null;
+  }
+};
+
+/**
+ * Checks stock availability in Inventory Service
+ * Returns { available, quantity } or null if not found
+ */
+const checkInventoryStock = async (productId, requiredQty) => {
+  try {
+    const response = await axios.get(
+      `${INVENTORY_SERVICE_URL}/inventory/check/${productId}?requiredQty=${requiredQty}`
+    );
+    return response.data;
+  } catch (error) {
+    return null;
+  }
+};
+
+/**
+ * Deducts stock in Inventory Service after a successful order
+ */
+const deductInventoryStock = async (productId, quantity) => {
+  try {
+    // Find the inventory record for this product
+    const listRes = await axios.get(`${INVENTORY_SERVICE_URL}/inventory`);
+    const records = listRes.data.data;
+    const record = records.find(r => r.productId === productId);
+    if (!record) return;
+    await axios.patch(`${INVENTORY_SERVICE_URL}/inventory/${record.id}/stock`, {
+      adjustment: -quantity
+    });
+  } catch (error) {
+    console.error(`Failed to deduct stock for productId ${productId}:`, error.message);
   }
 };
 
@@ -294,8 +327,8 @@ app.get('/health', (req, res) => {
  *                   type: object
  *                   properties:
  *                     productId:
- *                       type: string
- *                       example: p001
+ *                       type: integer
+ *                       example: 1
  *                     quantity:
  *                       type: integer
  *                       example: 2
@@ -326,7 +359,7 @@ app.get('/health', (req, res) => {
  */
 app.post('/orders', async (req, res) => {
   try {
-    // Validate input
+    // 1. Validate basic input fields
     const validationErrors = validateOrderInput(req.body);
     if (validationErrors.length > 0) {
       return res.status(400).json({
@@ -336,39 +369,72 @@ app.post('/orders', async (req, res) => {
       });
     }
 
-    // Optional: Validate products exist (basic simulation)
-    // Only runs if ENABLE_PRODUCT_VALIDATION is set to true in .env
-    if (ENABLE_PRODUCT_VALIDATION) {
-      for (const item of req.body.items) {
-        const productExists = await validateProduct(item.productId);
-        if (!productExists) {
-          return res.status(400).json({
-            success: false,
-            error: `Product with ID ${item.productId} not found`
-          });
-        }
+    // 2. Validate each product exists in Product Service + check inventory stock
+    const enrichedItems = [];
+    let totalAmount = 0;
+
+    for (const item of req.body.items) {
+      const productId = parseInt(item.productId);
+
+      // 2a. Check product exists and get its price
+      const product = await getProduct(productId);
+      if (!product) {
+        return res.status(400).json({
+          success: false,
+          error: `Product with ID ${productId} not found in Product Service`
+        });
       }
+
+      // 2b. Check inventory has enough stock
+      const stockCheck = await checkInventoryStock(productId, item.quantity);
+      if (!stockCheck) {
+        return res.status(400).json({
+          success: false,
+          error: `Could not verify inventory for product "${product.name}" (ID: ${productId})`
+        });
+      }
+      if (!stockCheck.available) {
+        return res.status(400).json({
+          success: false,
+          error: `Insufficient stock for "${product.name}". Available: ${stockCheck.quantity}, Requested: ${item.quantity}`
+        });
+      }
+
+      enrichedItems.push({
+        productId,
+        productName: product.name,
+        quantity:    item.quantity,
+        unitPrice:   product.price,
+        subtotal:    parseFloat((product.price * item.quantity).toFixed(2))
+      });
+      totalAmount += product.price * item.quantity;
     }
 
-    // Create new order
+    // 3. Create the order
     const newOrder = {
       id: orderIdCounter++,
       customerName: req.body.customerName.trim(),
-      email: req.body.email.trim(),
-      phone: req.body.phone.trim(),
-      address: req.body.address.trim(),
-      city: req.body.city.trim(),
-      postalCode: req.body.postalCode.trim(),
-      items: req.body.items,
-      status: ORDER_STATUS.PENDING,
-      createdAt: new Date().toISOString()
+      email:        req.body.email.trim(),
+      phone:        req.body.phone.trim(),
+      address:      req.body.address.trim(),
+      city:         req.body.city.trim(),
+      postalCode:   req.body.postalCode.trim(),
+      items:        enrichedItems,
+      totalAmount:  parseFloat(totalAmount.toFixed(2)),
+      status:       ORDER_STATUS.PENDING,
+      createdAt:    new Date().toISOString()
     };
 
     orders.push(newOrder);
 
+    // 4. Deduct stock from Inventory Service for each item
+    for (const item of enrichedItems) {
+      await deductInventoryStock(item.productId, item.quantity);
+    }
+
     res.status(201).json({
       success: true,
-      message: 'Order created successfully',
+      message: 'Order created successfully. Stock has been reserved.',
       data: newOrder
     });
 
@@ -712,6 +778,43 @@ app.delete('/orders/:id', (req, res) => {
       success: false,
       error: 'Failed to delete order'
     });
+  }
+});
+
+// ============================================
+// PATCH /orders/:id/status  (internal — called by Payment Service)
+// Updates order status to CONFIRMED or CANCELLED
+// ============================================
+app.patch('/orders/:id/status', (req, res) => {
+  try {
+    const orderId = parseInt(req.params.id);
+    const { status } = req.body;
+
+    if (isNaN(orderId)) {
+      return res.status(400).json({ success: false, error: 'Invalid order ID. Must be a number' });
+    }
+
+    if (!status || !Object.values(ORDER_STATUS).includes(status.toUpperCase())) {
+      return res.status(400).json({
+        success: false,
+        error: `Invalid status. Must be one of: ${Object.values(ORDER_STATUS).join(', ')}`
+      });
+    }
+
+    const orderIndex = orders.findIndex(o => o.id === orderId);
+    if (orderIndex === -1) {
+      return res.status(404).json({ success: false, error: 'Order not found' });
+    }
+
+    orders[orderIndex].status = status.toUpperCase();
+
+    res.status(200).json({
+      success: true,
+      message: `Order status updated to ${status.toUpperCase()}`,
+      data: orders[orderIndex]
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to update order status' });
   }
 });
 

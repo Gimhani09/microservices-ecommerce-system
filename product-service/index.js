@@ -7,10 +7,12 @@
  * Manage all product operations (CRUD) for the e-commerce system
  * 
  * ENDPOINTS:
- * POST   /products          → Create a new product
- * GET    /products          → Get all products
- * GET    /products/:id      → Get a specific product
- * DELETE /products/:id      → Delete a product
+ * POST   /products              → Create a new product
+ * GET    /products              → Get all products
+ * GET    /products/:id          → Get a specific product
+ * PUT    /products/:id          → Fully update a product
+ * PATCH  /products/:id/stock    → Update stock quantity only
+ * DELETE /products/:id          → Delete a product
  * 
  * PORT: 5001
  * ==============================================================
@@ -138,32 +140,71 @@ const swaggerDocs = {
       get: {
         summary: 'Get a specific product',
         tags: ['Products'],
-        parameters: [
-          {
-            name: 'id',
-            in: 'path',
-            required: true,
-            schema: { type: 'number' }
-          }
-        ],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'number' } }],
         responses: {
           200: { description: 'Product found' },
+          404: { description: 'Product not found' }
+        }
+      },
+      put: {
+        summary: 'Fully update a product',
+        tags: ['Products'],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'number' } }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['name', 'price', 'stock'],
+                properties: {
+                  name:  { type: 'string',  example: 'Laptop Pro' },
+                  price: { type: 'number',  example: 1199.99 },
+                  stock: { type: 'integer', example: 25 }
+                }
+              }
+            }
+          }
+        },
+        responses: {
+          200: { description: 'Product updated successfully' },
+          400: { description: 'Invalid input' },
           404: { description: 'Product not found' }
         }
       },
       delete: {
         summary: 'Delete a product',
         tags: ['Products'],
-        parameters: [
-          {
-            name: 'id',
-            in: 'path',
-            required: true,
-            schema: { type: 'number' }
-          }
-        ],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'number' } }],
         responses: {
           200: { description: 'Product deleted successfully' },
+          404: { description: 'Product not found' }
+        }
+      }
+    },
+    '/products/{id}/stock': {
+      patch: {
+        summary: 'Update product stock quantity',
+        description: 'Use a positive number to add stock, negative to reduce. Called by Order Service after a successful order.',
+        tags: ['Products'],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'number' } }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['adjustment'],
+                properties: {
+                  adjustment: { type: 'integer', example: -2, description: 'Positive to add stock, negative to reduce' }
+                }
+              }
+            }
+          }
+        },
+        responses: {
+          200: { description: 'Stock updated successfully' },
+          400: { description: 'Invalid adjustment or insufficient stock' },
           404: { description: 'Product not found' }
         }
       }
@@ -347,17 +388,87 @@ app.get('/products/:id', (req, res) => {
 });
 
 /**
+ * PUT /products/:id
+ * Fully update a product (name, price, stock)
+ */
+app.put('/products/:id', (req, res) => {
+  try {
+    const productId = parseInt(req.params.id);
+    if (isNaN(productId)) {
+      return res.status(400).json({ success: false, error: 'Product ID must be a number' });
+    }
+
+    const { name, price, stock } = req.body;
+    const validation = validateProduct({ name, price, stock });
+    if (!validation.isValid) {
+      return res.status(400).json({ success: false, error: validation.error });
+    }
+
+    const index = products.findIndex(p => p.id === productId);
+    if (index === -1) {
+      return res.status(404).json({ success: false, error: `Product with ID ${productId} not found` });
+    }
+
+    products[index] = { id: productId, name: name.trim(), price, stock };
+
+    res.json({
+      success: true,
+      message: 'Product updated successfully',
+      data: products[index]
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Internal server error: ' + error.message });
+  }
+});
+
+/**
+ * PATCH /products/:id/stock
+ * Adjust stock quantity (positive = add, negative = reduce)
+ * Called internally by Order Service when an order is placed.
+ */
+app.patch('/products/:id/stock', (req, res) => {
+  try {
+    const productId = parseInt(req.params.id);
+    if (isNaN(productId)) {
+      return res.status(400).json({ success: false, error: 'Product ID must be a number' });
+    }
+
+    const { adjustment } = req.body;
+    if (adjustment === undefined || adjustment === null) {
+      return res.status(400).json({ success: false, error: 'adjustment field is required' });
+    }
+    if (!Number.isInteger(adjustment) || adjustment === 0) {
+      return res.status(400).json({ success: false, error: 'adjustment must be a non-zero integer' });
+    }
+
+    const index = products.findIndex(p => p.id === productId);
+    if (index === -1) {
+      return res.status(404).json({ success: false, error: `Product with ID ${productId} not found` });
+    }
+
+    const newStock = products[index].stock + adjustment;
+    if (newStock < 0) {
+      return res.status(400).json({
+        success: false,
+        error: `Insufficient stock. Current: ${products[index].stock}, Requested reduction: ${Math.abs(adjustment)}`
+      });
+    }
+
+    products[index].stock = newStock;
+
+    res.json({
+      success: true,
+      message: `Stock ${adjustment > 0 ? 'increased' : 'decreased'} by ${Math.abs(adjustment)} units`,
+      data: products[index]
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Internal server error: ' + error.message });
+  }
+});
+
+/**
  * DELETE /products/:id
  * Delete a product by ID
- * 
- * URL Parameter:
- * - id: Product ID (number)
- * 
- * Response: 200 OK or 404 Not Found
- * {
- *   "success": true,
- *   "message": "Product deleted successfully"
- * }
  */
 app.delete('/products/:id', (req, res) => {
   try {
@@ -429,10 +540,12 @@ app.listen(PORT, () => {
 ❤️  Health Check:    http://localhost:${PORT}/health
 
 📋 Available Endpoints:
-   POST   /products          → Create a new product
-   GET    /products          → Get all products
-   GET    /products/:id      → Get a specific product
-   DELETE /products/:id      → Delete a product
+   POST   /products              → Create a new product
+   GET    /products              → Get all products
+   GET    /products/:id          → Get a specific product
+   PUT    /products/:id          → Fully update a product
+   PATCH  /products/:id/stock    → Adjust stock quantity
+   DELETE /products/:id          → Delete a product
 
 Environment: ${process.env.NODE_ENV}
   `);
