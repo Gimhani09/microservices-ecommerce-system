@@ -837,8 +837,6 @@ app.listen(PORT, () => {
   console.log(`🚀 Order Service is running on http://localhost:${PORT}`);
   console.log(`📚 Swagger API Documentation available at http://localhost:${PORT}/api-docs`);
   console.log(`💚 Health check: http://localhost:${PORT}/health`);
-  console.log(`🔍 Product validation: ${ENABLE_PRODUCT_VALIDATION ? 'ENABLED' : 'DISABLED'}`);
-  if (!ENABLE_PRODUCT_VALIDATION) {
-    console.log(`⚠️  Product validation is disabled. Orders can be created without checking Product Service.`);
-  }
+  console.log(`� Product Service:   ${PRODUCT_SERVICE_URL}`);
+  console.log(`🔗 Inventory Service: ${INVENTORY_SERVICE_URL}`);
 });
