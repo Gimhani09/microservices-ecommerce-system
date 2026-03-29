@@ -337,9 +337,9 @@ const swaggerSpec = swaggerJsdoc({
       '/api/inventory/{id}/stock': {
         patch: {
           tags: ['Inventory'],
-          summary: 'Update product stock quantity',
+          summary: 'Update product stock quantity (by inventory ID)',
           parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
-          description: 'Adjust stock quantity. Use positive number to add stock, negative to reduce (e.g. -5 after an order).',
+          description: 'Adjust stock quantity by internal inventory record ID. Use positive number to add stock, negative to reduce.',
           requestBody: {
             required: true,
             content: {
@@ -357,6 +357,29 @@ const swaggerSpec = swaggerJsdoc({
           responses: { '200': { description: 'Stock adjusted successfully' }, '400': { description: 'Invalid adjustment or insufficient stock' }, '404': { description: 'Not found' } }
         }
       },
+      '/api/inventory/product/{productId}/stock': {
+        patch: {
+          tags: ['Inventory'],
+          summary: 'Update product stock quantity (by product ID)',
+          description: 'Adjust stock quantity identified by productId instead of inventory record ID. This is the endpoint used internally by Order Service.',
+          parameters: [{ name: 'productId', in: 'path', required: true, schema: { type: 'integer' }, description: 'Product ID whose stock to adjust' }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['adjustment'],
+                  properties: {
+                    adjustment: { type: 'integer', example: -2, description: 'Positive to add stock, negative to reduce stock' }
+                  }
+                }
+              }
+            }
+          },
+          responses: { '200': { description: 'Stock adjusted successfully' }, '400': { description: 'Invalid adjustment or insufficient stock' }, '404': { description: 'No inventory found for this productId' } }
+        }
+      },
       '/api/payments': {
         get: {
           tags: ['Payment'],
@@ -366,23 +389,28 @@ const swaggerSpec = swaggerJsdoc({
         post: {
           tags: ['Payment'],
           summary: 'Process payment',
-          description: 'Process a new payment transaction',
+          description: 'Process a new payment for an order. The payment amount is retrieved from Order Service — client-provided amounts are ignored to prevent tampering. Optionally force a result using simulateStatus for demo/testing.',
           requestBody: {
             required: true,
             content: {
               'application/json': {
                 schema: {
                   type: 'object',
-                  required: ['orderId', 'amount'],
+                  required: ['orderId'],
                   properties: {
-                    orderId: { type: 'integer', example: 101 },
-                    amount: { type: 'number', example: 299.99 }
+                    orderId: { type: 'integer', example: 1, description: 'ID of the order to pay for' },
+                    simulateStatus: {
+                      type: 'string',
+                      enum: ['SUCCESS', 'FAILED'],
+                      example: 'SUCCESS',
+                      description: 'Optional: force payment result for demo/testing. Omit to use 80% random success rate.'
+                    }
                   }
                 }
               }
             }
           },
-          responses: { '201': { description: 'Payment processed' }, '400': { description: 'Invalid payment data' } }
+          responses: { '201': { description: 'Payment processed' }, '400': { description: 'Invalid payment data or order not found' }, '503': { description: 'Order Service unavailable' } }
         }
       },
       '/api/payments/{id}': {

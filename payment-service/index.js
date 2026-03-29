@@ -59,6 +59,7 @@ const swaggerDocs = {
     '/payments': {
       post: {
         summary: 'Process a new payment',
+        description: 'Validates the order, retrieves the order total from Order Service (client-provided amount is ignored for security), then simulates payment processing.',
         tags: ['Payments'],
         requestBody: {
           required: true,
@@ -67,10 +68,15 @@ const swaggerDocs = {
               schema: {
                 type: 'object',
                 properties: {
-                  orderId: { type: 'number', example: 101 },
-                  amount: { type: 'number', example: 299.99 }
+                  orderId: { type: 'number', example: 1, description: 'ID of the order to pay for' },
+                  simulateStatus: {
+                    type: 'string',
+                    enum: ['SUCCESS', 'FAILED'],
+                    example: 'SUCCESS',
+                    description: 'Optional: force a specific payment result for demo/testing. Omit to use random (80% success rate).'
+                  }
                 },
-                required: ['orderId', 'amount']
+                required: ['orderId']
               }
             }
           }
@@ -252,26 +258,21 @@ function validatePayment(payment) {
     return { isValid: false, error: 'Order ID must be an integer' };
   }
 
-  // Check if amount exists and is a positive number
-  if (payment.amount === undefined || payment.amount === null) {
-    return { isValid: false, error: 'Amount is required' };
-  }
-
-  if (typeof payment.amount !== 'number' || payment.amount <= 0) {
-    return { isValid: false, error: 'Amount must be a positive number' };
-  }
-
   return { isValid: true };
 }
 
 // =============== PAYMENT PROCESSING SIMULATOR ===============
 /**
- * Simulates payment processing with random success/failure
+ * Simulates payment processing.
  * In production, this would integrate with a real payment gateway (Stripe, PayPal, etc.)
  *
+ * @param {string|undefined} simulateStatus - Force 'SUCCESS' or 'FAILED' (for demo/testing). If omitted, uses 80% random success.
  * @returns {string} - "SUCCESS" or "FAILED"
  */
-function processPayment() {
+function processPayment(simulateStatus) {
+  if (simulateStatus === 'SUCCESS' || simulateStatus === 'FAILED') {
+    return simulateStatus;
+  }
   // 80% success rate
   const random = Math.random();
   return random < 0.8 ? 'SUCCESS' : 'FAILED';
@@ -288,14 +289,17 @@ function findPaymentById(id) {
 
 /**
  * Checks the Order Service to verify an order exists.
- * Returns the order object or null.
+ * Returns { order, serviceDown } where serviceDown=true means service is unreachable.
  */
 async function getOrder(orderId) {
   try {
     const response = await axios.get(`${ORDER_SERVICE_URL}/orders/${orderId}`);
-    return response.data.success ? response.data.data : null;
+    return { order: response.data.success ? response.data.data : null, serviceDown: false };
   } catch (error) {
-    return null;
+    if (!error.response) {
+      return { order: null, serviceDown: true };
+    }
+    return { order: null, serviceDown: false };
   }
 }
 
@@ -339,9 +343,9 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 app.post('/payments', async (req, res) => {
   try {
     // 1. Extract and validate payment data
-    const { orderId, amount } = req.body;
+    const { orderId, simulateStatus } = req.body;
 
-    const validation = validatePayment({ orderId, amount });
+    const validation = validatePayment({ orderId });
     if (!validation.isValid) {
       return res.status(400).json({
         success: false,
@@ -349,8 +353,22 @@ app.post('/payments', async (req, res) => {
       });
     }
 
-    // 2. Verify the order exists in Order Service
-    const order = await getOrder(orderId);
+    // Validate simulateStatus if provided
+    if (simulateStatus !== undefined && !['SUCCESS', 'FAILED'].includes(simulateStatus)) {
+      return res.status(400).json({
+        success: false,
+        error: 'simulateStatus must be either "SUCCESS" or "FAILED"'
+      });
+    }
+
+    // 2. Verify the order exists in Order Service and get the authoritative total amount
+    const { order, serviceDown } = await getOrder(orderId);
+    if (serviceDown) {
+      return res.status(503).json({
+        success: false,
+        error: 'Order Service is currently unavailable. Please try again later.'
+      });
+    }
     if (!order) {
       return res.status(400).json({
         success: false,
@@ -358,8 +376,11 @@ app.post('/payments', async (req, res) => {
       });
     }
 
-    // 3. Simulate payment processing (80% success rate)
-    const status = processPayment();
+    // Use the verified order total — do NOT trust the client-provided amount
+    const amount = order.totalAmount;
+
+    // 3. Simulate payment processing
+    const status = processPayment(simulateStatus);
 
     // 4. Create new payment record
     const newPayment = {
@@ -380,7 +401,7 @@ app.post('/payments', async (req, res) => {
       success: status === 'SUCCESS',
       message: status === 'SUCCESS'
         ? `Payment successful. Order #${orderId} is now CONFIRMED.`
-        : `Payment failed. Order #${orderId} has been CANCELLED.`,
+        : `Payment failed. Order #${orderId} has been CANCELLED and stock has been restored.`,
       data: newPayment
     });
   } catch (error) {

@@ -234,6 +234,45 @@ const swaggerDocs = {
         }
       }
     },
+    '/inventory/product/{productId}/stock': {
+      patch: {
+        summary: 'Adjust stock by product ID (used by Order Service)',
+        description: 'Adjust stock for an inventory record identified by productId. Use this when you know the productId rather than the internal inventory ID. Positive adjustment adds stock, negative reduces stock.',
+        tags: ['Inventory'],
+        parameters: [
+          {
+            name: 'productId',
+            in: 'path',
+            required: true,
+            description: 'Product ID whose stock to adjust',
+            schema: { type: 'number' }
+          }
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['adjustment'],
+                properties: {
+                  adjustment: {
+                    type: 'number',
+                    example: -2,
+                    description: 'Positive to add stock, negative to reduce stock'
+                  }
+                }
+              }
+            }
+          }
+        },
+        responses: {
+          200: { description: 'Stock adjusted successfully' },
+          400: { description: 'Invalid adjustment or insufficient stock' },
+          404: { description: 'No inventory record found for this productId' }
+        }
+      }
+    },
     '/inventory/{id}/stock': {
       patch: {
         summary: 'Adjust stock quantity for an inventory record',
@@ -439,6 +478,52 @@ app.get('/inventory/check/:productId', (req, res) => {
 });
 
 // ---------------------------------------------------------------
+// PATCH /inventory/product/:productId/stock
+// Adjust stock by productId (used internally by Order Service)
+// ---------------------------------------------------------------
+app.patch('/inventory/product/:productId/stock', (req, res) => {
+  try {
+    const productId = parseInt(req.params.productId);
+    if (isNaN(productId)) {
+      return res.status(400).json({ success: false, error: 'productId must be a number' });
+    }
+
+    const { adjustment } = req.body;
+
+    if (adjustment === undefined || adjustment === null) {
+      return res.status(400).json({ success: false, error: 'adjustment field is required' });
+    }
+    if (typeof adjustment !== 'number' || !Number.isInteger(adjustment) || adjustment === 0) {
+      return res.status(400).json({ success: false, error: 'adjustment must be a non-zero integer' });
+    }
+
+    const index = inventory.findIndex(i => i.productId === productId);
+    if (index === -1) {
+      return res.status(404).json({ success: false, error: `No inventory record found for productId ${productId}` });
+    }
+
+    const newQuantity = inventory[index].quantity + adjustment;
+    if (newQuantity < 0) {
+      return res.status(400).json({
+        success: false,
+        error: `Insufficient stock. Current: ${inventory[index].quantity}, Attempted reduction: ${Math.abs(adjustment)}`
+      });
+    }
+
+    inventory[index].quantity = newQuantity;
+    inventory[index].lastUpdated = new Date().toISOString();
+
+    res.json({
+      success: true,
+      message: `Stock ${adjustment > 0 ? 'increased' : 'decreased'} by ${Math.abs(adjustment)} units`,
+      data: inventory[index]
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Internal server error: ' + error.message });
+  }
+});
+
+// ---------------------------------------------------------------
 // GET /inventory/:id
 // Get a specific inventory record by ID
 // ---------------------------------------------------------------
@@ -621,9 +706,10 @@ app.listen(PORT, () => {
    GET    /inventory                  → Get all inventory records
    GET    /inventory/:id              → Get a specific record
    PUT    /inventory/:id              → Update a full record
-   PATCH  /inventory/:id/stock        → Adjust stock quantity
-   DELETE /inventory/:id              → Delete a record
-   GET    /inventory/check/:productId → Check stock availability
+   PATCH  /inventory/:id/stock                  → Adjust stock quantity
+   PATCH  /inventory/product/:productId/stock  → Adjust stock by product ID
+   DELETE /inventory/:id                        → Delete a record
+   GET    /inventory/check/:productId           → Check stock availability
 
 Environment: ${process.env.NODE_ENV}
   `);

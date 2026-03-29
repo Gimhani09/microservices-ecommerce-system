@@ -206,48 +206,59 @@ const validateOrderInput = (data) => {
 };
 
 /**
- * Fetches product details from Product Service
- * Returns { id, name, price, stock } or null if not found
+ * Fetches product details from Product Service.
+ * Returns { product, serviceDown } where serviceDown=true means the service is unreachable.
  */
 const getProduct = async (productId) => {
   try {
     const response = await axios.get(`${PRODUCT_SERVICE_URL}/products/${productId}`);
-    return response.data.success ? response.data.data : null;
+    return { product: response.data.success ? response.data.data : null, serviceDown: false };
   } catch (error) {
-    return null;
+    if (!error.response) {
+      return { product: null, serviceDown: true };
+    }
+    return { product: null, serviceDown: false };
   }
 };
 
 /**
- * Checks stock availability in Inventory Service
- * Returns { available, quantity } or null if not found
+ * Checks stock availability in Inventory Service.
+ * Returns { data, serviceDown } where serviceDown=true means the service is unreachable.
  */
 const checkInventoryStock = async (productId, requiredQty) => {
   try {
     const response = await axios.get(
       `${INVENTORY_SERVICE_URL}/inventory/check/${productId}?requiredQty=${requiredQty}`
     );
-    return response.data;
+    return { data: response.data, serviceDown: false };
   } catch (error) {
-    return null;
+    if (!error.response) {
+      return { data: null, serviceDown: true };
+    }
+    return { data: null, serviceDown: false };
   }
 };
 
 /**
- * Deducts stock in Inventory Service after a successful order
+ * Deducts stock via productId-based endpoint (throws on failure for compensation handling).
  */
 const deductInventoryStock = async (productId, quantity) => {
+  await axios.patch(`${INVENTORY_SERVICE_URL}/inventory/product/${productId}/stock`, {
+    adjustment: -quantity
+  });
+};
+
+/**
+ * Restores stock (used for rollback on failure or order cancellation).
+ * Does not throw — failures are logged only.
+ */
+const restoreInventoryStock = async (productId, quantity) => {
   try {
-    // Find the inventory record for this product
-    const listRes = await axios.get(`${INVENTORY_SERVICE_URL}/inventory`);
-    const records = listRes.data.data;
-    const record = records.find(r => r.productId === productId);
-    if (!record) return;
-    await axios.patch(`${INVENTORY_SERVICE_URL}/inventory/${record.id}/stock`, {
-      adjustment: -quantity
+    await axios.patch(`${INVENTORY_SERVICE_URL}/inventory/product/${productId}/stock`, {
+      adjustment: quantity
     });
   } catch (error) {
-    console.error(`Failed to deduct stock for productId ${productId}:`, error.message);
+    console.error(`Failed to restore stock for productId ${productId}:`, error.message);
   }
 };
 
@@ -377,7 +388,13 @@ app.post('/orders', async (req, res) => {
       const productId = parseInt(item.productId);
 
       // 2a. Check product exists and get its price
-      const product = await getProduct(productId);
+      const { product, serviceDown: productServiceDown } = await getProduct(productId);
+      if (productServiceDown) {
+        return res.status(503).json({
+          success: false,
+          error: 'Product Service is currently unavailable. Please try again later.'
+        });
+      }
       if (!product) {
         return res.status(400).json({
           success: false,
@@ -386,7 +403,13 @@ app.post('/orders', async (req, res) => {
       }
 
       // 2b. Check inventory has enough stock
-      const stockCheck = await checkInventoryStock(productId, item.quantity);
+      const { data: stockCheck, serviceDown: inventoryServiceDown } = await checkInventoryStock(productId, item.quantity);
+      if (inventoryServiceDown) {
+        return res.status(503).json({
+          success: false,
+          error: 'Inventory Service is currently unavailable. Please try again later.'
+        });
+      }
       if (!stockCheck) {
         return res.status(400).json({
           success: false,
@@ -428,8 +451,26 @@ app.post('/orders', async (req, res) => {
     orders.push(newOrder);
 
     // 4. Deduct stock from Inventory Service for each item
+    // If any deduction fails, roll back: restore already-deducted items and cancel the order
+    const deducted = [];
     for (const item of enrichedItems) {
-      await deductInventoryStock(item.productId, item.quantity);
+      try {
+        await deductInventoryStock(item.productId, item.quantity);
+        deducted.push(item);
+      } catch (deductError) {
+        console.error(`Stock deduction failed for productId ${item.productId}:`, deductError.message);
+        // Rollback stock for already-deducted items
+        for (const d of deducted) {
+          await restoreInventoryStock(d.productId, d.quantity);
+        }
+        // Remove the order that was just created
+        orders.pop();
+        orderIdCounter--;
+        return res.status(503).json({
+          success: false,
+          error: `Failed to reserve stock for "${item.productName}". Order has been rolled back. Please try again.`
+        });
+      }
     }
 
     res.status(201).json({
@@ -670,20 +711,6 @@ app.put('/orders/:id', async (req, res) => {
       });
     }
 
-    // Optional: Validate products exist
-    // Only runs if ENABLE_PRODUCT_VALIDATION is set to true in .env
-    if (ENABLE_PRODUCT_VALIDATION) {
-      for (const item of req.body.items) {
-        const productExists = await validateProduct(item.productId);
-        if (!productExists) {
-          return res.status(400).json({
-            success: false,
-            error: `Product with ID ${item.productId} not found`
-          });
-        }
-      }
-    }
-
     // Update order (preserve id, status, and createdAt)
     const updatedOrder = {
       ...orders[orderIndex],
@@ -783,9 +810,10 @@ app.delete('/orders/:id', (req, res) => {
 
 // ============================================
 // PATCH /orders/:id/status  (internal — called by Payment Service)
-// Updates order status to CONFIRMED or CANCELLED
+// Updates order status to CONFIRMED or CANCELLED.
+// On CANCELLED, restores reserved inventory for all order items.
 // ============================================
-app.patch('/orders/:id/status', (req, res) => {
+app.patch('/orders/:id/status', async (req, res) => {
   try {
     const orderId = parseInt(req.params.id);
     const { status } = req.body;
@@ -806,7 +834,16 @@ app.patch('/orders/:id/status', (req, res) => {
       return res.status(404).json({ success: false, error: 'Order not found' });
     }
 
+    const previousStatus = orders[orderIndex].status;
     orders[orderIndex].status = status.toUpperCase();
+
+    // On cancellation, restore reserved inventory to maintain stock consistency
+    if (status.toUpperCase() === 'CANCELLED' && previousStatus !== 'CANCELLED') {
+      for (const item of orders[orderIndex].items) {
+        await restoreInventoryStock(item.productId, item.quantity);
+      }
+      console.log(`Order #${orderId} cancelled — inventory restored for ${orders[orderIndex].items.length} item(s)`);
+    }
 
     res.status(200).json({
       success: true,
