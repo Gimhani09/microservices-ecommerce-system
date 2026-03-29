@@ -86,24 +86,43 @@ const swaggerSpec = swaggerJsdoc({
         get: {
           tags: ['Products'],
           summary: 'Get all products',
-          description: 'Retrieve list of all products via gateway',
+          description: 'Retrieve product catalog via gateway. Stock quantities are managed by Inventory Service.',
+          parameters: [
+            { name: 'q', in: 'query', schema: { type: 'string' }, description: 'Search by name, category, description, or brand' },
+            { name: 'category', in: 'query', schema: { type: 'string' }, description: 'Filter by category (case-insensitive exact match)' },
+            { name: 'brand', in: 'query', schema: { type: 'string' }, description: 'Filter by brand (case-insensitive exact match)' },
+            { name: 'isActive', in: 'query', schema: { type: 'boolean' }, description: 'Filter active/inactive products' },
+            { name: 'minPrice', in: 'query', schema: { type: 'number' }, description: 'Minimum price filter' },
+            { name: 'maxPrice', in: 'query', schema: { type: 'number' }, description: 'Maximum price filter' }
+          ],
           responses: { '200': { description: 'List of products' } }
         },
         post: {
           tags: ['Products'],
           summary: 'Create new product',
-          description: 'Create a new product (requires: name, price, stock)',
+          description: 'Create a new product (requires: name, price). Optional: category, description, brand, isActive. Stock is managed by Inventory Service.',
           requestBody: {
             required: true,
             content: {
               'application/json': {
+                example: {
+                  name: 'Laptop',
+                  price: 899.99,
+                  category: 'Electronics',
+                  description: 'Portable computer for work and study',
+                  brand: 'TechPro',
+                  isActive: true
+                },
                 schema: {
                   type: 'object',
-                  required: ['name', 'price', 'stock'],
+                  required: ['name', 'price'],
                   properties: {
                     name: { type: 'string', example: 'Laptop' },
                     price: { type: 'number', example: 899.99 },
-                    stock: { type: 'integer', example: 10 }
+                    category: { type: 'string', example: 'Electronics' },
+                    description: { type: 'string', example: 'Portable computer for work and study' },
+                    brand: { type: 'string', example: 'TechPro' },
+                    isActive: { type: 'boolean', example: true }
                   }
                 }
               }
@@ -122,19 +141,30 @@ const swaggerSpec = swaggerJsdoc({
         put: {
           tags: ['Products'],
           summary: 'Update product',
-          description: 'Fully update a product (name, price, stock)',
+          description: 'Fully update a product (name, price, category, description, brand, isActive)',
           parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
           requestBody: {
             required: true,
             content: {
               'application/json': {
+                example: {
+                  name: 'Laptop Pro',
+                  price: 1199.99,
+                  category: 'Electronics',
+                  description: 'Upgraded laptop with better performance',
+                  brand: 'TechPro',
+                  isActive: true
+                },
                 schema: {
                   type: 'object',
-                  required: ['name', 'price', 'stock'],
+                  required: ['name', 'price'],
                   properties: {
                     name:  { type: 'string',  example: 'Laptop Pro' },
                     price: { type: 'number',  example: 1199.99 },
-                    stock: { type: 'integer', example: 25 }
+                    category: { type: 'string', example: 'Electronics' },
+                    description: { type: 'string', example: 'Upgraded laptop with better performance' },
+                    brand: { type: 'string', example: 'TechPro' },
+                    isActive: { type: 'boolean', example: true }
                   }
                 }
               }
@@ -147,29 +177,6 @@ const swaggerSpec = swaggerJsdoc({
           summary: 'Delete product',
           parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
           responses: { '200': { description: 'Product deleted' }, '404': { description: 'Product not found' } }
-        }
-      },
-      '/api/products/{id}/stock': {
-        patch: {
-          tags: ['Products'],
-          summary: 'Adjust product stock',
-          description: 'Positive to add stock, negative to reduce (e.g. -2 after an order)',
-          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
-          requestBody: {
-            required: true,
-            content: {
-              'application/json': {
-                schema: {
-                  type: 'object',
-                  required: ['adjustment'],
-                  properties: {
-                    adjustment: { type: 'integer', example: -2 }
-                  }
-                }
-              }
-            }
-          },
-          responses: { '200': { description: 'Stock adjusted' }, '400': { description: 'Invalid adjustment or insufficient stock' }, '404': { description: 'Product not found' } }
         }
       },
       '/api/orders': {
@@ -647,12 +654,12 @@ app.get('/docs', (req, res) => {
       '/api/products': {
         service: 'Product Service',
         port: 5001,
-        methods: ['GET', 'POST', 'DELETE'],
+        methods: ['GET', 'POST', 'PUT', 'DELETE'],
         endpoints: [
           {
             method: 'GET',
             path: '/api/products',
-            description: 'Get all products'
+            description: 'Get product catalog (stock is managed by Inventory Service)'
           },
           {
             method: 'GET',
@@ -663,7 +670,13 @@ app.get('/docs', (req, res) => {
             method: 'POST',
             path: '/api/products',
             description: 'Create a new product',
-            body: { name: 'string', price: 'number', stock: 'number' }
+            body: { name: 'string', price: 'number' }
+          },
+          {
+            method: 'PUT',
+            path: '/api/products/:id',
+            description: 'Fully update a product',
+            body: { name: 'string', price: 'number' }
           },
           {
             method: 'DELETE',

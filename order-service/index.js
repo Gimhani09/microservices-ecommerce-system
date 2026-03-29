@@ -250,16 +250,34 @@ const deductInventoryStock = async (productId, quantity) => {
 
 /**
  * Restores stock (used for rollback on failure or order cancellation).
- * Does not throw — failures are logged only.
+ * Throws on failure so callers can decide whether compensation completed fully.
  */
 const restoreInventoryStock = async (productId, quantity) => {
-  try {
-    await axios.patch(`${INVENTORY_SERVICE_URL}/inventory/product/${productId}/stock`, {
-      adjustment: quantity
-    });
-  } catch (error) {
-    console.error(`Failed to restore stock for productId ${productId}:`, error.message);
+  await axios.patch(`${INVENTORY_SERVICE_URL}/inventory/product/${productId}/stock`, {
+    adjustment: quantity
+  });
+};
+
+/**
+ * Best-effort compensation for previously deducted stock.
+ * Returns product IDs that could not be restored.
+ */
+const compensateDeductedStock = async (deductedItems) => {
+  const failedRestores = [];
+
+  for (const item of deductedItems) {
+    try {
+      await restoreInventoryStock(item.productId, item.quantity);
+    } catch (restoreError) {
+      failedRestores.push(item.productId);
+      console.error(
+        `Compensation failed for productId ${item.productId}:`,
+        restoreError.message
+      );
+    }
   }
+
+  return failedRestores;
 };
 
 // ============================================
@@ -402,6 +420,14 @@ app.post('/orders', async (req, res) => {
         });
       }
 
+      // Product must be active to be ordered
+      if (product.isActive === false) {
+        return res.status(400).json({
+          success: false,
+          error: 'Product is inactive and cannot be ordered'
+        });
+      }
+
       // 2b. Check inventory has enough stock
       const { data: stockCheck, serviceDown: inventoryServiceDown } = await checkInventoryStock(productId, item.quantity);
       if (inventoryServiceDown) {
@@ -460,12 +486,20 @@ app.post('/orders', async (req, res) => {
       } catch (deductError) {
         console.error(`Stock deduction failed for productId ${item.productId}:`, deductError.message);
         // Rollback stock for already-deducted items
-        for (const d of deducted) {
-          await restoreInventoryStock(d.productId, d.quantity);
-        }
+        const failedRestores = await compensateDeductedStock(deducted);
+
         // Remove the order that was just created
         orders.pop();
         orderIdCounter--;
+
+        if (failedRestores.length > 0) {
+          return res.status(500).json({
+            success: false,
+            error: `Failed to reserve stock for "${item.productName}". Order was rolled back, but stock compensation failed for product IDs: ${failedRestores.join(', ')}.`,
+            consistencyWarning: true
+          });
+        }
+
         return res.status(503).json({
           success: false,
           error: `Failed to reserve stock for "${item.productName}". Order has been rolled back. Please try again.`
@@ -839,9 +873,18 @@ app.patch('/orders/:id/status', async (req, res) => {
 
     // On cancellation, restore reserved inventory to maintain stock consistency
     if (status.toUpperCase() === 'CANCELLED' && previousStatus !== 'CANCELLED') {
-      for (const item of orders[orderIndex].items) {
-        await restoreInventoryStock(item.productId, item.quantity);
+      const failedRestores = await compensateDeductedStock(orders[orderIndex].items);
+
+      if (failedRestores.length > 0) {
+        orders[orderIndex].status = previousStatus;
+        return res.status(500).json({
+          success: false,
+          error: `Order cancellation partially failed. Could not restore stock for product IDs: ${failedRestores.join(', ')}.`,
+          consistencyWarning: true,
+          data: orders[orderIndex]
+        });
       }
+
       console.log(`Order #${orderId} cancelled — inventory restored for ${orders[orderIndex].items.length} item(s)`);
     }
 

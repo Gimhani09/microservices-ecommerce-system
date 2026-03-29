@@ -23,6 +23,7 @@
 5. [Payment Service Endpoints](#5-payment-service-endpoints)
 6. [Swagger UI URLs](#6-swagger-ui-urls)
 7. [Screenshot Checklist for Assignment Document](#7-screenshot-checklist-for-assignment-document)
+8. [Change Tests (Latest Verification)](#change-tests-latest-verification)
 
 ---
 
@@ -47,9 +48,9 @@
 |---|--------|-----|-------------|
 | 7 | GET | `http://localhost:5000/api/products` | Get all products |
 | 8 | POST | `http://localhost:5000/api/products` | Create a product |
-| 9 | GET | `http://localhost:5000/api/products/1` | Get product by ID |
-| 10 | PUT | `http://localhost:5000/api/products/1` | Update a product |
-| 11 | PATCH | `http://localhost:5000/api/products/1/stock` | Adjust product stock |
+| 9 | GET | `http://localhost:5000/api/products?q=demo&isActive=true` | Search/filter products |
+| 10 | GET | `http://localhost:5000/api/products/1` | Get product by ID |
+| 11 | PUT | `http://localhost:5000/api/products/1` | Update a product |
 | 12 | DELETE | `http://localhost:5000/api/products/1` | Delete a product |
 
 ### 1.3 Inventory Routes via Gateway
@@ -96,11 +97,11 @@
 | # | Method | Direct URL | Gateway Equivalent | Description |
 |---|--------|-----------|-------------------|-------------|
 | 1 | GET | `http://localhost:5001/products` | `http://localhost:5000/api/products` | Get all products |
-| 2 | POST | `http://localhost:5001/products` | `http://localhost:5000/api/products` | Create new product |
-| 3 | GET | `http://localhost:5001/products/1` | `http://localhost:5000/api/products/1` | Get product by ID |
-| 4 | GET | `http://localhost:5001/products/2` | `http://localhost:5000/api/products/2` | Get product by ID |
-| 5 | PUT | `http://localhost:5001/products/1` | `http://localhost:5000/api/products/1` | Full update product |
-| 6 | PATCH | `http://localhost:5001/products/1/stock` | `http://localhost:5000/api/products/1/stock` | Adjust product stock |
+| 2 | GET | `http://localhost:5001/products?q=demo&isActive=true` | `http://localhost:5000/api/products?q=demo&isActive=true` | Search/filter products |
+| 3 | POST | `http://localhost:5001/products` | `http://localhost:5000/api/products` | Create new product |
+| 4 | GET | `http://localhost:5001/products/1` | `http://localhost:5000/api/products/1` | Get product by ID |
+| 5 | GET | `http://localhost:5001/products/2` | `http://localhost:5000/api/products/2` | Get product by ID |
+| 6 | PUT | `http://localhost:5001/products/1` | `http://localhost:5000/api/products/1` | Full update product |
 | 7 | DELETE | `http://localhost:5001/products/1` | `http://localhost:5000/api/products/1` | Delete product |
 | 8 | GET | `http://localhost:5001/health` | — | Health check |
 | 9 | GET | `http://localhost:5001/api-docs` | `http://localhost:5000/api-docs` | Swagger UI |
@@ -112,23 +113,18 @@
 {
   "name": "Wireless Headphones",
   "price": 149.99,
-  "stock": 30
+  "category": "Electronics",
+  "description": "Over-ear Bluetooth headphones",
+  "brand": "SoundMax",
+  "isActive": true
 }
 ```
-
-**PATCH /products/1/stock — Adjust Stock:**
-```json
-{
-  "adjustment": -2
-}
-```
-> Negative reduces stock, positive adds stock.
 
 ### Default Seed Data (available on startup):
 ```
-ID 1 - Laptop      | price: 999.99 | stock: 10
-ID 2 - Mouse       | price: 29.99  | stock: 100
-ID 3 - Keyboard    | price: 79.99  | stock: 50
+ID 1 - Laptop      | price: 999.99 | category: Electronics | brand: TechPro   | isActive: true
+ID 2 - Mouse       | price: 29.99  | category: Accessories | brand: ClickX    | isActive: true
+ID 3 - Keyboard    | price: 79.99  | category: Accessories | brand: KeyMaster | isActive: true
 ```
 
 ---
@@ -330,24 +326,23 @@ PENDING  →  (payment FAILED)   →  CANCELLED  (inventory restored automatical
 | B1 | Product Service Swagger UI | `http://localhost:5001/api-docs` | — |
 | B2 | GET all products — direct | `GET http://localhost:5001/products` | — |
 | B3 | GET all products — **via gateway** | — | `GET http://localhost:5000/api/products` |
-| B4 | POST create new product — direct | `POST http://localhost:5001/products` | — |
-| B5 | POST create new product — **via gateway** | — | `POST http://localhost:5000/api/products` |
-| B6 | GET product by ID — direct | `GET http://localhost:5001/products/1` | — |
-| B7 | GET product by ID — **via gateway** | — | `GET http://localhost:5000/api/products/1` |
-| B8 | PATCH adjust product stock | `PATCH http://localhost:5001/products/1/stock` | `PATCH http://localhost:5000/api/products/1/stock` |
+| B4 | GET products with filters (`q`, `isActive`) | `GET http://localhost:5001/products?q=demo&isActive=true` | `GET http://localhost:5000/api/products?q=demo&isActive=true` |
+| B5 | POST create new product — direct | `POST http://localhost:5001/products` | — |
+| B6 | POST create new product — **via gateway** | — | `POST http://localhost:5000/api/products` |
+| B7 | GET product by ID — direct | `GET http://localhost:5001/products/1` | — |
+| B8 | GET product by ID — **via gateway** | — | `GET http://localhost:5000/api/products/1` |
 | B9 | Product Service health check | `GET http://localhost:5001/health` | — |
 
-**Body for B4/B5 (POST create product):**
+**Body for B5/B6 (POST create product):**
 ```json
 {
   "name": "Gaming Laptop",
   "price": 1500.00,
-  "stock": 5
+  "category": "Electronics",
+  "description": "High-performance laptop",
+  "brand": "TechPro",
+  "isActive": true
 }
-```
-**Body for B8 (PATCH stock):**
-```json
-{ "adjustment": -2 }
 ```
 
 ---
@@ -486,6 +481,47 @@ Step 14: GET  http://localhost:5000/api/inventory         ← Laptop: 7→8 (sto
 --- Test refund ---
 Step 15: POST http://localhost:5000/api/payments/1/refund ← Refund successful payment
 Step 16: GET  http://localhost:5000/api/payments/1        ← Status=REFUNDED
+```
+
+---
+
+## CHANGE TESTS (Latest Verification)
+
+> Verified on **2026-03-29** against local running services and gateway.
+
+| # | Test | Endpoint | Expected | Result |
+|---|------|----------|----------|--------|
+| 1 | Gateway health | `GET http://localhost:5000/health` | 200 | PASS |
+| 2 | Product create with new fields | `POST http://localhost:5001/products` | 201 + returns `isActive` | PASS |
+| 3 | Product filter support | `GET http://localhost:5001/products?q=Demo&isActive=true` | 200 | PASS |
+| 4 | Inventory create for new product | `POST http://localhost:5003/inventory` | 201 | PASS |
+| 5 | Inactive product order block | `POST http://localhost:5000/api/orders` | 400 + `Product is inactive and cannot be ordered` | PASS |
+| 6 | Order create (active product) | `POST http://localhost:5000/api/orders` | 201 | PASS |
+| 7 | Payment success updates order | `POST http://localhost:5000/api/payments` + `GET /orders/{id}` | `CONFIRMED` | PASS |
+| 8 | Refund scope response | `POST http://localhost:5004/payments/{id}/refund` | 200 + `scope` object | PASS |
+
+### Change-Test Request Body: Inactive Product
+```json
+{
+  "name": "Tmp",
+  "price": 10,
+  "isActive": false
+}
+```
+
+### Change-Test Request Body: Order (should fail for inactive product)
+```json
+{
+  "customerName": "Test User",
+  "email": "test@example.com",
+  "phone": "0771234567",
+  "address": "Street 1",
+  "city": "Colombo",
+  "postalCode": "10000",
+  "items": [
+    { "productId": "<inactiveProductId>", "quantity": 1 }
+  ]
+}
 ```
 
 ---

@@ -213,7 +213,8 @@ const swaggerDocs = {
     },
     '/payments/{id}/refund': {
       post: {
-        summary: 'Create a refund for a payment',
+        summary: 'Create a refund for a successful payment',
+        description: 'MVP scope: this endpoint updates Payment status to REFUNDED only. It does not automatically reverse order fulfillment or inventory.',
         tags: ['Payments'],
         parameters: [
           {
@@ -554,7 +555,8 @@ app.patch('/payments/:id', (req, res) => {
 
 /**
  * POST /payments/:id/refund
- * Mark payment as refunded (only if previously SUCCESS)
+ * Mark payment as refunded (only if previously SUCCESS).
+ * Scope note: refund updates payment record only.
  */
 app.post('/payments/:id/refund', (req, res) => {
   try {
@@ -579,7 +581,12 @@ app.post('/payments/:id/refund', (req, res) => {
 
     res.json({
       success: true,
-      message: 'Payment refunded',
+      message: 'Payment refunded. MVP scope: order status and inventory are not changed automatically by refund.',
+      scope: {
+        paymentUpdated: true,
+        orderUpdated: false,
+        inventoryRestored: false
+      },
       data: payment
     });
   } catch (error) {

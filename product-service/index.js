@@ -8,10 +8,9 @@
  * 
  * ENDPOINTS:
  * POST   /products              → Create a new product
- * GET    /products              → Get all products
+ * GET    /products              → Get all products (supports search/filter)
  * GET    /products/:id          → Get a specific product
  * PUT    /products/:id          → Fully update a product
- * PATCH  /products/:id/stock    → Update stock quantity only
  * DELETE /products/:id          → Delete a product
  * 
  * PORT: 5001
@@ -35,9 +34,33 @@ app.use(express.json());
 // =============== IN-MEMORY DATABASE ===============
 // In real production, this would be a database (MongoDB, PostgreSQL, etc.)
 let products = [
-  { id: 1, name: 'Laptop', price: 999.99, stock: 10 },
-  { id: 2, name: 'Mouse', price: 29.99, stock: 100 },
-  { id: 3, name: 'Keyboard', price: 79.99, stock: 50 }
+  {
+    id: 1,
+    name: 'Laptop',
+    price: 999.99,
+    category: 'Electronics',
+    description: 'Portable computer for work and study',
+    brand: 'TechPro',
+    isActive: true
+  },
+  {
+    id: 2,
+    name: 'Mouse',
+    price: 29.99,
+    category: 'Accessories',
+    description: 'Wireless ergonomic mouse',
+    brand: 'ClickX',
+    isActive: true
+  },
+  {
+    id: 3,
+    name: 'Keyboard',
+    price: 79.99,
+    category: 'Accessories',
+    description: 'Mechanical keyboard with backlight',
+    brand: 'KeyMaster',
+    isActive: true
+  }
 ];
 
 // Counter for generating unique IDs
@@ -49,7 +72,7 @@ const swaggerDocs = {
   info: {
     title: 'Product Service API',
     version: '1.0.0',
-    description: 'Microservice for managing products in the e-commerce system'
+    description: 'Microservice for managing product catalog data (name, price, category, description, brand, isActive). Stock is managed by Inventory Service.'
   },
   servers: [
     {
@@ -71,9 +94,12 @@ const swaggerDocs = {
                 properties: {
                   name: { type: 'string', example: 'Wireless Headphones' },
                   price: { type: 'number', example: 149.99 },
-                  stock: { type: 'number', example: 50 }
+                  category: { type: 'string', example: 'Electronics' },
+                  description: { type: 'string', example: 'Over-ear Bluetooth headphones' },
+                  brand: { type: 'string', example: 'SoundMax' },
+                  isActive: { type: 'boolean', example: true }
                 },
-                required: ['name', 'price', 'stock']
+                required: ['name', 'price']
               }
             }
           }
@@ -93,7 +119,10 @@ const swaggerDocs = {
                         id: { type: 'number' },
                         name: { type: 'string' },
                         price: { type: 'number' },
-                        stock: { type: 'number' }
+                        category: { type: 'string' },
+                        description: { type: 'string' },
+                        brand: { type: 'string' },
+                        isActive: { type: 'boolean' }
                       }
                     }
                   }
@@ -107,6 +136,14 @@ const swaggerDocs = {
       get: {
         summary: 'Get all products',
         tags: ['Products'],
+        parameters: [
+          { name: 'q', in: 'query', schema: { type: 'string' }, description: 'Search by name, category, description, or brand' },
+          { name: 'category', in: 'query', schema: { type: 'string' }, description: 'Filter by category (exact match, case-insensitive)' },
+          { name: 'brand', in: 'query', schema: { type: 'string' }, description: 'Filter by brand (exact match, case-insensitive)' },
+          { name: 'isActive', in: 'query', schema: { type: 'boolean' }, description: 'Filter active/inactive products' },
+          { name: 'minPrice', in: 'query', schema: { type: 'number' }, description: 'Filter minimum product price' },
+          { name: 'maxPrice', in: 'query', schema: { type: 'number' }, description: 'Filter maximum product price' }
+        ],
         responses: {
           200: {
             description: 'List of all products',
@@ -124,7 +161,10 @@ const swaggerDocs = {
                           id: { type: 'number' },
                           name: { type: 'string' },
                           price: { type: 'number' },
-                          stock: { type: 'number' }
+                          category: { type: 'string' },
+                          description: { type: 'string' },
+                          brand: { type: 'string' },
+                          isActive: { type: 'boolean' }
                         }
                       }
                     }
@@ -156,11 +196,14 @@ const swaggerDocs = {
             'application/json': {
               schema: {
                 type: 'object',
-                required: ['name', 'price', 'stock'],
+                required: ['name', 'price'],
                 properties: {
                   name:  { type: 'string',  example: 'Laptop Pro' },
                   price: { type: 'number',  example: 1199.99 },
-                  stock: { type: 'integer', example: 25 }
+                  category: { type: 'string', example: 'Electronics' },
+                  description: { type: 'string', example: 'Upgraded laptop with better performance' },
+                  brand: { type: 'string', example: 'TechPro' },
+                  isActive: { type: 'boolean', example: true }
                 }
               }
             }
@@ -178,33 +221,6 @@ const swaggerDocs = {
         parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'number' } }],
         responses: {
           200: { description: 'Product deleted successfully' },
-          404: { description: 'Product not found' }
-        }
-      }
-    },
-    '/products/{id}/stock': {
-      patch: {
-        summary: 'Update product stock quantity',
-        description: 'Use a positive number to add stock, negative to reduce. Called by Order Service after a successful order.',
-        tags: ['Products'],
-        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'number' } }],
-        requestBody: {
-          required: true,
-          content: {
-            'application/json': {
-              schema: {
-                type: 'object',
-                required: ['adjustment'],
-                properties: {
-                  adjustment: { type: 'integer', example: -2, description: 'Positive to add stock, negative to reduce' }
-                }
-              }
-            }
-          }
-        },
-        responses: {
-          200: { description: 'Stock updated successfully' },
-          400: { description: 'Invalid adjustment or insufficient stock' },
           404: { description: 'Product not found' }
         }
       }
@@ -238,13 +254,20 @@ function validateProduct(product) {
     return { isValid: false, error: 'Product price must be a positive number' };
   }
 
-  // Check if stock exists and is a non-negative integer
-  if (product.stock === undefined || product.stock === null) {
-    return { isValid: false, error: 'Product stock is required' };
+  if (product.category !== undefined && typeof product.category !== 'string') {
+    return { isValid: false, error: 'Product category must be a string' };
   }
 
-  if (!Number.isInteger(product.stock) || product.stock < 0) {
-    return { isValid: false, error: 'Product stock must be a non-negative integer' };
+  if (product.description !== undefined && typeof product.description !== 'string') {
+    return { isValid: false, error: 'Product description must be a string' };
+  }
+
+  if (product.brand !== undefined && typeof product.brand !== 'string') {
+    return { isValid: false, error: 'Product brand must be a string' };
+  }
+
+  if (product.isActive !== undefined && typeof product.isActive !== 'boolean') {
+    return { isValid: false, error: 'Product isActive must be a boolean' };
   }
 
   return { isValid: true };
@@ -266,23 +289,26 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
  * {
  *   "name": "Product Name",
  *   "price": 99.99,
- *   "stock": 50
+ *   "category": "Electronics",
+ *   "description": "Product description",
+ *   "brand": "Brand Name",
+ *   "isActive": true
  * }
  * 
  * Response: 201 Created
  * {
  *   "success": true,
  *   "message": "Product created successfully",
- *   "data": { id, name, price, stock }
+ *   "data": { id, name, price, category, description, brand, isActive }
  * }
  */
 app.post('/products', (req, res) => {
   try {
     // Extract data from request body
-    const { name, price, stock } = req.body;
+    const { name, price, category, description, brand, isActive } = req.body;
 
     // Validate the product data
-    const validation = validateProduct({ name, price, stock });
+    const validation = validateProduct({ name, price, category, description, brand, isActive });
     if (!validation.isValid) {
       return res.status(400).json({
         success: false,
@@ -295,7 +321,10 @@ app.post('/products', (req, res) => {
       id: productIdCounter++,
       name: name.trim(),
       price,
-      stock
+      category: (category || 'General').trim(),
+      description: (description || '').trim(),
+      brand: (brand || 'Generic').trim(),
+      isActive: isActive !== undefined ? isActive : true
     };
 
     // Add product to array
@@ -317,20 +346,55 @@ app.post('/products', (req, res) => {
 
 /**
  * GET /products
- * Get all products
+ * Get all products with optional search/filter
  * 
  * Response: 200 OK
  * {
  *   "success": true,
- *   "data": [{ id, name, price, stock }, ...]
+ *   "data": [{ id, name, price }, ...]
  * }
  */
 app.get('/products', (req, res) => {
   try {
+    const { q, category, brand, isActive, minPrice, maxPrice } = req.query;
+    let filteredProducts = [...products];
+
+    if (q) {
+      const search = q.toLowerCase();
+      filteredProducts = filteredProducts.filter((p) => (
+        p.name.toLowerCase().includes(search)
+        || p.category.toLowerCase().includes(search)
+        || p.description.toLowerCase().includes(search)
+        || p.brand.toLowerCase().includes(search)
+      ));
+    }
+
+    if (category) {
+      filteredProducts = filteredProducts.filter((p) => p.category.toLowerCase() === category.toLowerCase());
+    }
+
+    if (brand) {
+      filteredProducts = filteredProducts.filter((p) => p.brand.toLowerCase() === brand.toLowerCase());
+    }
+
+    if (isActive !== undefined) {
+      const activeValue = isActive === 'true';
+      filteredProducts = filteredProducts.filter((p) => p.isActive === activeValue);
+    }
+
+    if (minPrice !== undefined) {
+      filteredProducts = filteredProducts.filter((p) => p.price >= Number(minPrice));
+    }
+
+    if (maxPrice !== undefined) {
+      filteredProducts = filteredProducts.filter((p) => p.price <= Number(maxPrice));
+    }
+
     res.json({
       success: true,
-      message: `Retrieved ${products.length} products`,
-      data: products
+      message: `Retrieved ${filteredProducts.length} products`,
+      filters: { q, category, brand, isActive, minPrice, maxPrice },
+      data: filteredProducts
     });
   } catch (error) {
     res.status(500).json({
@@ -350,7 +414,7 @@ app.get('/products', (req, res) => {
  * Response: 200 OK or 404 Not Found
  * {
  *   "success": true,
- *   "data": { id, name, price, stock }
+ *   "data": { id, name, price, category, description, brand, isActive }
  * }
  */
 app.get('/products/:id', (req, res) => {
@@ -389,7 +453,7 @@ app.get('/products/:id', (req, res) => {
 
 /**
  * PUT /products/:id
- * Fully update a product (name, price, stock)
+ * Fully update a product (name, price, category, description, brand, isActive)
  */
 app.put('/products/:id', (req, res) => {
   try {
@@ -398,8 +462,8 @@ app.put('/products/:id', (req, res) => {
       return res.status(400).json({ success: false, error: 'Product ID must be a number' });
     }
 
-    const { name, price, stock } = req.body;
-    const validation = validateProduct({ name, price, stock });
+    const { name, price, category, description, brand, isActive } = req.body;
+    const validation = validateProduct({ name, price, category, description, brand, isActive });
     if (!validation.isValid) {
       return res.status(400).json({ success: false, error: validation.error });
     }
@@ -409,56 +473,19 @@ app.put('/products/:id', (req, res) => {
       return res.status(404).json({ success: false, error: `Product with ID ${productId} not found` });
     }
 
-    products[index] = { id: productId, name: name.trim(), price, stock };
+    products[index] = {
+      id: productId,
+      name: name.trim(),
+      price,
+      category: (category || 'General').trim(),
+      description: (description || '').trim(),
+      brand: (brand || 'Generic').trim(),
+      isActive: isActive !== undefined ? isActive : true
+    };
 
     res.json({
       success: true,
       message: 'Product updated successfully',
-      data: products[index]
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, error: 'Internal server error: ' + error.message });
-  }
-});
-
-/**
- * PATCH /products/:id/stock
- * Adjust stock quantity (positive = add, negative = reduce)
- * Called internally by Order Service when an order is placed.
- */
-app.patch('/products/:id/stock', (req, res) => {
-  try {
-    const productId = parseInt(req.params.id);
-    if (isNaN(productId)) {
-      return res.status(400).json({ success: false, error: 'Product ID must be a number' });
-    }
-
-    const { adjustment } = req.body;
-    if (adjustment === undefined || adjustment === null) {
-      return res.status(400).json({ success: false, error: 'adjustment field is required' });
-    }
-    if (!Number.isInteger(adjustment) || adjustment === 0) {
-      return res.status(400).json({ success: false, error: 'adjustment must be a non-zero integer' });
-    }
-
-    const index = products.findIndex(p => p.id === productId);
-    if (index === -1) {
-      return res.status(404).json({ success: false, error: `Product with ID ${productId} not found` });
-    }
-
-    const newStock = products[index].stock + adjustment;
-    if (newStock < 0) {
-      return res.status(400).json({
-        success: false,
-        error: `Insufficient stock. Current: ${products[index].stock}, Requested reduction: ${Math.abs(adjustment)}`
-      });
-    }
-
-    products[index].stock = newStock;
-
-    res.json({
-      success: true,
-      message: `Stock ${adjustment > 0 ? 'increased' : 'decreased'} by ${Math.abs(adjustment)} units`,
       data: products[index]
     });
   } catch (error) {
@@ -541,10 +568,9 @@ app.listen(PORT, () => {
 
 📋 Available Endpoints:
    POST   /products              → Create a new product
-   GET    /products              → Get all products
+  GET    /products              → Get all products (search/filter supported)
    GET    /products/:id          → Get a specific product
    PUT    /products/:id          → Fully update a product
-   PATCH  /products/:id/stock    → Adjust stock quantity
    DELETE /products/:id          → Delete a product
 
 Environment: ${process.env.NODE_ENV}
